@@ -1,5 +1,5 @@
 // WingCast Service Worker v27
-const CACHE_NAME = 'wingcast-v28';
+const CACHE_NAME = 'wingcast-v27';
 const ASSETS = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', event => {
