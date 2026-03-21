@@ -1,0 +1,2 @@
+# Wingcast
+Wingfoil forecast
