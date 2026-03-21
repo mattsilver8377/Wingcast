@@ -1,0 +1,3545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>WingCast — Wingfoil Forecast</title>
+
+<!-- PWA Meta Tags -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="WingCast">
+<meta name="application-name" content="WingCast">
+<meta name="theme-color" content="#040d1a">
+<meta name="description" content="7-day wingfoil forecast — wind, tides & conditions for South Coast UK">
+<meta name="msapplication-TileColor" content="#040d1a">
+<meta name="msapplication-TileImage" content="icons/icon-144x144.png">
+
+<!-- PWA Manifest -->
+<link rel="manifest" href="./manifest.json">
+
+<!-- Apple Touch Icons -->
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152x152.png">
+<link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192x192.png">
+
+<!-- Favicon -->
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192x192.png">
+<link rel="icon" type="image/png" sizes="96x96" href="icons/icon-96x96.png">
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;600&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ocean-deep: #040d1a;
+    --ocean-mid: #071e38;
+    --ocean-surface: #0a2d52;
+    --wave: #0e4d8a;
+    --foam: #1a7abf;
+    --sky: #5bc4f5;
+    --sun: #f7c948;
+    --wind-green: #00e5a0;
+    --wind-yellow: #f7c948;
+    --wind-orange: #ff8c42;
+    --wind-red: #ff3b5c;
+    --text-bright: #e8f4ff;
+    --text-dim: #7ab3d4;
+    --text-muted: #3a6a8a;
+    --glass: rgba(10, 45, 82, 0.6);
+    --glass-border: rgba(91, 196, 245, 0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--ocean-deep);
+    color: var(--text-bright);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Ocean background animation */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 120% 60% at 50% 100%, rgba(14,77,138,0.4) 0%, transparent 60%),
+      radial-gradient(ellipse 80% 40% at 20% 80%, rgba(26,122,191,0.15) 0%, transparent 50%),
+      radial-gradient(ellipse 60% 30% at 80% 70%, rgba(0,229,160,0.05) 0%, transparent 50%),
+      linear-gradient(180deg, #020810 0%, #040d1a 40%, #071e38 100%);
+    z-index: -2;
+  }
+
+  /* Animated wave lines */
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 300px;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 28px,
+      rgba(91,196,245,0.03) 28px,
+      rgba(91,196,245,0.03) 30px
+    );
+    z-index: -1;
+    animation: waveScroll 8s linear infinite;
+  }
+
+  @keyframes waveScroll {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(30px); }
+  }
+
+  /* Header */
+  header {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #040d1a;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    overflow: hidden;
+    gap: 8px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  .location-picker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    min-width: 0;
+    flex: 1;
+    max-width: 220px;
+  }
+
+  .location-picker:hover {
+    border-color: var(--sky);
+    background: rgba(10, 45, 82, 0.9);
+  }
+
+  .location-picker select {
+    background: transparent;
+    border: none;
+    color: var(--text-bright);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+    min-width: 0;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .location-picker select option {
+    background: var(--ocean-mid);
+  }
+
+  .pin-icon { color: var(--wind-green); font-size: 14px; }
+
+  .now-badge {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+
+  /* Conditions banner */
+  .conditions-banner {
+    margin: 16px 16px;
+    padding: 16px 20px;
+    border-radius: 12px;
+    border: 1px solid;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    animation: fadeSlideIn 0.5s ease forwards;
+  }
+
+  .banner-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .banner-epic {
+    background: linear-gradient(135deg, rgba(0,229,160,0.12), rgba(0,229,160,0.04));
+    border-color: rgba(0,229,160,0.4);
+  }
+
+  .banner-good {
+    background: linear-gradient(135deg, rgba(91,196,245,0.12), rgba(91,196,245,0.04));
+    border-color: rgba(91,196,245,0.4);
+  }
+
+  .banner-marginal {
+    background: linear-gradient(135deg, rgba(247,201,72,0.12), rgba(247,201,72,0.04));
+    border-color: rgba(247,201,72,0.35);
+  }
+
+  .banner-poor {
+    background: linear-gradient(135deg, rgba(255,59,92,0.10), rgba(255,59,92,0.03));
+    border-color: rgba(255,59,92,0.3);
+  }
+
+  .banner-label {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 42px;
+    letter-spacing: 4px;
+    line-height: 1;
+  }
+
+  .banner-epic .banner-label { color: var(--wind-green); }
+  .banner-good .banner-label { color: var(--sky); }
+  .banner-marginal .banner-label { color: var(--wind-yellow); }
+  .banner-poor .banner-label { color: var(--wind-red); }
+
+  .banner-desc {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 14px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+
+  .banner-now {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    align-items: center;
+  }
+
+  .now-stat {
+    text-align: center;
+  }
+
+  .now-stat-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    line-height: 1;
+    color: var(--text-bright);
+  }
+
+  .now-stat-unit {
+    font-size: 14px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .now-stat-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* Wind direction arrow */
+  .wind-arrow-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .wind-compass {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 1px solid var(--glass-border);
+    background: var(--glass);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .wind-arrow {
+    width: 4px;
+    height: 20px;
+    background: linear-gradient(to bottom, var(--wind-green), transparent);
+    border-radius: 2px;
+    transform-origin: bottom center;
+    transition: transform 1s ease;
+    position: relative;
+  }
+
+  .wind-arrow::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 7px solid var(--wind-green);
+  }
+
+  /* Main content */
+  main { padding: 0 24px 40px; }
+
+  /* Day tabs */
+  .day-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+
+  .day-tabs::-webkit-scrollbar { display: none; }
+
+  .day-tab {
+    flex-shrink: 0;
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--glass-border);
+    background: var(--glass);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    min-width: 72px;
+  }
+
+  .day-tab:hover {
+    border-color: rgba(91,196,245,0.3);
+    background: rgba(10,45,82,0.8);
+    color: var(--text-bright);
+  }
+
+  .day-tab.active {
+    border-color: var(--sky);
+    background: rgba(91,196,245,0.12);
+    color: var(--text-bright);
+  }
+
+  .day-tab-name {
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  .day-tab-score {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 2px;
+  }
+
+  .score-epic { background: var(--wind-green); box-shadow: 0 0 6px var(--wind-green); }
+  .score-good { background: var(--sky); box-shadow: 0 0 6px var(--sky); }
+  .score-marginal { background: var(--wind-orange); box-shadow: 0 0 6px var(--wind-orange); }
+  .score-poor { background: var(--wind-red); box-shadow: 0 0 4px var(--wind-red); }
+
+  /* Forecast grid */
+  .forecast-section {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+
+  .section-header {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .section-icon { font-size: 16px; }
+
+  /* Hourly forecast table */
+  .hourly-table {
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ocean-surface) transparent;
+    position: relative;
+  }
+
+  table {
+    width: 100%;
+    min-width: 700px;
+    border-collapse: collapse;
+    border-spacing: 0;
+  }
+
+  thead th {
+    padding: 10px 14px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    text-align: center;
+    border-bottom: 1px solid var(--glass-border);
+    white-space: nowrap;
+    background: var(--ocean-mid);
+  }
+
+  thead th:first-child {
+    text-align: left;
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: var(--ocean-mid);
+    box-shadow: 2px 0 4px rgba(0,0,0,0.3);
+  }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(91,196,245,0.05);
+    transition: background 0.15s;
+  }
+
+  tbody tr:hover { background: rgba(91,196,245,0.05); }
+  tbody tr:last-child { border-bottom: none; }
+
+  td {
+    padding: 10px 14px;
+    text-align: center;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  td:first-child {
+    text-align: left;
+    color: var(--text-dim);
+    font-size: 12px;
+    letter-spacing: 1px;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--ocean-deep);
+    box-shadow: 2px 0 4px rgba(0,0,0,0.3);
+  }
+
+  tbody tr:hover td:first-child { background: rgba(10,45,82,0.9); }
+
+  .wind-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .wind-speed-bar {
+    height: 3px;
+    border-radius: 2px;
+    min-width: 20px;
+    max-width: 60px;
+    transition: width 0.5s ease;
+  }
+
+  .wind-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .wind-gust {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+  }
+
+  .dir-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    background: rgba(91,196,245,0.1);
+    color: var(--sky);
+    letter-spacing: 1px;
+  }
+
+  .temp-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+  }
+
+  .temp-hot { color: #ff8c42; }
+  .temp-warm { color: #f7c948; }
+  .temp-mild { color: var(--sky); }
+  .temp-cold { color: #7ab3d4; }
+
+  .weather-icon { font-size: 20px; }
+
+  .condition-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    border: 1px solid;
+  }
+
+  .pill-epic {
+    background: rgba(0,229,160,0.12);
+    border-color: rgba(0,229,160,0.4);
+    color: var(--wind-green);
+  }
+
+  .pill-good {
+    background: rgba(91,196,245,0.12);
+    border-color: rgba(91,196,245,0.4);
+    color: var(--sky);
+  }
+
+  .pill-marginal {
+    background: rgba(255,140,66,0.10);
+    border-color: rgba(255,140,66,0.35);
+    color: var(--wind-orange);
+  }
+
+  .pill-poor {
+    background: rgba(255,59,92,0.08);
+    border-color: rgba(255,59,92,0.3);
+    color: var(--wind-red);
+  }
+
+  .pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* ====== BOTTOM NAV ====== */
+  #bottomNav { position:fixed;bottom:0;left:0;right:0;height:62px;background:rgba(4,13,26,0.97);border-top:1px solid var(--glass-border);display:flex;z-index:300;backdrop-filter:blur(16px); }
+  .nav-btn { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:none;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:1px;cursor:pointer;transition:color 0.2s;padding:0; }
+  .nav-btn.active { color:var(--wind-green); }
+  .nav-btn.active svg { filter:drop-shadow(0 0 4px var(--wind-green)); }
+  main, #sessionsPanel, #profilePanel { padding-bottom:80px; }
+
+  /* ====== PROFILE SHARED ====== */
+  .profile-section { background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;padding:18px;margin-bottom:14px; }
+  .profile-section-title { font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);letter-spacing:3px;margin-bottom:14px; }
+  .profile-label { font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:2px;display:block;margin-bottom:5px; }
+  .profile-input { width:100%;background:rgba(91,196,245,0.05);border:1px solid var(--glass-border);border-radius:8px;padding:9px 11px;color:var(--text-bright);font-family:'Barlow Condensed',sans-serif;font-size:14px;outline:none;box-sizing:border-box; }
+  .profile-select { width:100%;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:8px;padding:9px 11px;color:var(--text-bright);font-family:'Barlow Condensed',sans-serif;font-size:14px;outline:none;box-sizing:border-box; }
+  .profile-input:focus, .profile-select:focus { border-color:rgba(0,229,160,0.4);box-shadow:0 0 0 2px rgba(0,229,160,0.08); }
+  .profile-add-btn { font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:1px;padding:4px 12px;border-radius:6px;cursor:pointer;border:1px solid; }
+  .unit-btn { flex:1;padding:8px;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);transition:all 0.15s; }
+  .star-btn { flex:1;padding:9px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:17px;cursor:pointer;transition:all 0.15s; }
+
+  /* ====== QUIVER / GEAR ITEMS ====== */
+  .quiver-item { display:flex;align-items:center;gap:12px;padding:10px 13px;background:rgba(91,196,245,0.04);border:1px solid var(--glass-border);border-radius:8px; }
+  .quiver-size { font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--wind-green);min-width:46px; }
+  .quiver-name { font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-dim);flex:1; }
+  .quiver-del { background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:4px;line-height:1; }
+  .quiver-del:hover { color:var(--wind-red); }
+
+  /* ====== SESSION CARDS ====== */
+  .session-card { background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:14px;margin-bottom:8px; }
+  .session-card-header { display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px; }
+  .session-date { font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);letter-spacing:1px; }
+  .session-location { font-family:'Bebas Neue',sans-serif;font-size:17px;color:var(--text-bright);letter-spacing:2px; }
+  .session-stats { display:flex;gap:14px;flex-wrap:wrap; }
+  .session-stat { display:flex;flex-direction:column;gap:1px; }
+  .session-stat-val { font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--sky);line-height:1; }
+  .session-stat-lbl { font-family:'Barlow Condensed',sans-serif;font-size:9px;color:var(--text-muted);letter-spacing:1px; }
+    padding: 20px;
+  }
+
+  .tide-svg-container {
+    position: relative;
+    width: 100%;
+    height: 120px;
+  }
+
+  .tide-labels {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 10px;
+    margin-top: 6px;
+  }
+
+  .tide-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-align: center;
+  }
+
+  .tide-time {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+
+  .tide-height-label {
+    color: var(--sky);
+  }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .stat-card {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    transition: border-color 0.2s;
+  }
+
+  .stat-card:hover { border-color: rgba(91,196,245,0.3); }
+
+  .stat-card-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .stat-card-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px;
+    line-height: 1;
+    color: var(--text-bright);
+  }
+
+  .stat-card-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  /* Wing condition key */
+  .condition-key {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 12px 20px;
+    background: rgba(4, 13, 26, 0.5);
+    border-top: 1px solid var(--glass-border);
+  }
+
+  .key-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .key-items {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .key-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .key-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  /* Water temp */
+  .water-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(91,196,245,0.08);
+    border: 1px solid rgba(91,196,245,0.2);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--sky);
+    font-family: 'Barlow Condensed', sans-serif;
+    letter-spacing: 1px;
+  }
+
+  /* Sunrise/sunset */
+  .sun-strip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    border-top: 1px solid var(--glass-border);
+  }
+
+  .sun-item { display: flex; align-items: center; gap: 8px; }
+
+  /* Wind speed bar colors */
+  .ws-calm { background: #3a6a8a; }
+  .ws-light { background: #7ab3d4; }
+  .ws-perfect { background: var(--wind-green); }
+  .ws-strong { background: var(--wind-yellow); }
+  .ws-gusty { background: var(--wind-orange); }
+  .ws-storm { background: var(--wind-red); }
+
+  .wind-val.ws-light-text { color: #7ab3d4; }
+  .wind-val.ws-perfect-text { color: var(--wind-green); }
+  .wind-val.ws-strong-text { color: var(--wind-yellow); }
+  .wind-val.ws-gusty-text { color: var(--wind-orange); }
+  .wind-val.ws-storm-text { color: var(--wind-red); }
+
+  /* Tooltip */
+  .tooltip-wrap { position: relative; display: inline-block; }
+
+  .tooltip-content {
+    display: none;
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ocean-mid);
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    z-index: 10;
+    letter-spacing: 0.5px;
+  }
+
+  .tooltip-wrap:hover .tooltip-content { display: block; }
+
+  /* Info bar */
+  .info-bar {
+    margin: 0 24px 16px;
+    padding: 10px 18px;
+    background: rgba(247,201,72,0.06);
+    border: 1px solid rgba(247,201,72,0.2);
+    border-radius: 8px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px;
+    color: var(--wind-yellow);
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Wind map */
+  #windMapCanvas {
+    width: 100%;
+    display: block;
+    cursor: crosshair;
+  }
+
+  @media (max-width: 600px) {
+    header { flex-direction: row; align-items: center; }
+    .banner-now { flex-wrap: wrap; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* iOS safe area (notch / Dynamic Island / home bar) */
+  header {
+    padding-top: max(12px, env(safe-area-inset-top, 12px));
+    padding-left: max(16px, env(safe-area-inset-left, 16px));
+    padding-right: max(16px, env(safe-area-inset-right, 16px));
+  }
+  main {
+    padding-bottom: max(40px, calc(env(safe-area-inset-bottom, 0px) + 40px));
+  }
+
+  /* Install banner */
+  #installBanner {
+    display: none;
+    margin: 0 24px 16px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, rgba(0,229,160,0.12), rgba(0,229,160,0.04));
+    border: 1px solid rgba(0,229,160,0.35);
+    border-radius: 10px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 14px;
+    color: var(--wind-green);
+    letter-spacing: 1px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  #installBanner.visible { display: flex; }
+  #installBtn {
+    background: var(--wind-green);
+    color: var(--ocean-deep);
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  #installBtn:hover { background: #00c48a; }
+  #dismissInstall {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 4px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <img src="icons/logo-header.png?v=5" alt="WingCast" style="height:52px;max-width:200px;width:auto;flex-shrink:0;display:block;object-fit:contain;">
+  </div>
+  <div class="header-right">
+    <button id="unitToggleBtn" onclick="nextUnit()" style="background:rgba(91,196,245,0.12);border:1px solid rgba(91,196,245,0.3);color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;padding:5px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;flex-shrink:0;">KTS</button>
+    <div class="location-picker">
+      <span class="pin-icon">◈</span>
+      <select id="locationSelect" onchange="changeLocation()"></select>
+    </div>
+    <button onclick="openSettings()" style="background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);color:var(--text-dim);width:34px;height:34px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;" title="Settings">⚙️</button>
+</header>
+
+<!-- PWA Install Banner (shown when installable) -->
+<div id="installBanner">
+  <span>📲 Add WingCast to your home screen for offline use</span>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button id="installBtn">INSTALL</button>
+    <button id="dismissInstall">✕</button>
+  </div>
+</div>
+
+<!-- Offline indicator -->
+<div id="offlineBadge" style="display:none;margin:0 24px 12px;padding:8px 16px;background:rgba(255,140,66,0.1);border:1px solid rgba(255,140,66,0.3);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--wind-orange);letter-spacing:1px;">
+  📡 You're offline — showing cached forecast
+</div>
+
+<div id="conditionsBanner"></div>
+
+<!-- AI Daily Summary -->
+<div id="aiSummaryBar" style="display:none;margin:0 16px 12px;padding:14px 16px;background:linear-gradient(135deg,rgba(0,229,160,0.06),rgba(91,196,245,0.04));border:1px solid rgba(0,229,160,0.2);border-radius:10px;">
+  <div style="display:flex;align-items:flex-start;gap:10px;">
+    <div style="font-size:18px;flex-shrink:0;">📋</div>
+    <div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:2px;margin-bottom:4px;">TODAY'S SUMMARY</div>
+      <div id="aiSummaryText" style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);line-height:1.4;"></div>
+    </div>
+    <button onclick="loadAISummary()" id="aiRefreshBtn" style="margin-left:auto;background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;flex-shrink:0;">↻</button>
+  </div>
+</div>
+
+<!-- Spot watchers -->
+<div id="spotWatchers" style="display:none;margin:0 16px 12px;padding:8px 14px;background:rgba(91,196,245,0.05);border:1px solid rgba(91,196,245,0.15);border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);letter-spacing:1px;align-items:center;gap:8px;">
+  <span>👁️</span><span id="watchersText"></span>
+</div>
+
+<div class="info-bar" id="offshoreInfoBar">
+  <span>⚠️</span>
+  <span id="offshoreInfoText">Offshore winds = DANGEROUS — always check direction before launching.</span>
+</div>
+
+<main>
+  <!-- Stats row -->
+  <div class="stats-row" id="statsRow"></div>
+
+  <!-- Wind Map -->
+  <div class="forecast-section" style="margin-bottom:16px;">
+    <div class="section-header">
+      <span class="section-icon">🛰️</span>
+      <span class="section-title" id="mapTitle">Satellite Map</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+        <span id="mapTimeLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);letter-spacing:1px;"></span>
+        <button id="mapPlayBtn" onclick="toggleMapAnimation()" style="background:rgba(0,229,160,0.15);border:1px solid rgba(0,229,160,0.3);color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:2px;padding:4px 12px;border-radius:4px;cursor:pointer;">⏵ PLAY</button>
+      </div>
+    </div>
+    <!-- Leaflet map container -->
+    <div id="leafletMap" style="width:100%;height:320px;"></div>
+    <!-- Wind arrow canvas overlay — drawn on top of leaflet -->
+    <canvas id="windMapCanvas" style="display:none;"></canvas>
+    <!-- Legend BELOW the map -->
+    <div style="padding:12px 16px;border-top:1px solid var(--glass-border);display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:2px;">WIND:</span>
+        <div style="display:flex;align-items:center;gap:4px;"><div style="width:14px;height:14px;border-radius:50%;background:#3a6a8a;"></div><span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-dim);">&lt;8 calm</span></div>
+        <div style="display:flex;align-items:center;gap:4px;"><div style="width:14px;height:14px;border-radius:50%;background:#7ab3d4;"></div><span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-dim);">8–12 light</span></div>
+        <div style="display:flex;align-items:center;gap:4px;"><div style="width:14px;height:14px;border-radius:50%;background:#00e5a0;"></div><span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-dim);">12–22 🏄 perfect</span></div>
+        <div style="display:flex;align-items:center;gap:4px;"><div style="width:14px;height:14px;border-radius:50%;background:#f7c948;"></div><span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-dim);">22–28 strong</span></div>
+        <div style="display:flex;align-items:center;gap:4px;"><div style="width:14px;height:14px;border-radius:50%;background:#ff8c42;"></div><span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-dim);">28–35 gusty</span></div>
+        <div style="display:flex;align-items:center;gap:4px;"><div style="width:14px;height:14px;border-radius:50%;background:#ff3b5c;"></div><span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-dim);">&gt;35 storm</span></div>
+      </div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:1px;">Tap a spot to select it</div>
+    </div>
+  </div>
+
+  <!-- Day selector -->
+  <div class="day-tabs" id="dayTabs"></div>
+
+  <!-- Hourly forecast -->
+  <div class="forecast-section">
+    <div class="section-header">
+      <span class="section-icon">💨</span>
+      <span class="section-title">Hourly Wind & Weather</span>
+    </div>
+    <div class="hourly-table" style="overflow-x:auto;">
+      <table id="forecastTable" style="min-width:600px;">
+        <thead>
+          <tr>
+            <th style="position:sticky;left:0;z-index:2;background:var(--ocean-mid);">TIME</th>
+            <th>CONDITION</th>
+            <th>WIND<br><span id="thWind">KTS</span></th>
+            <th>GUSTS<br><span id="thGust">KTS</span></th>
+            <th>WING</th>
+            <th>DIR</th>
+            <th>WEATHER</th>
+            <th>TEMP</th>
+            <th>SWELL<br>M</th>
+            <th>PERIOD<br>S</th>
+            <th>CLOUD<br>%</th>
+          </tr>
+        </thead>
+        <tbody id="forecastBody"></tbody>
+      </table>
+    </div>
+    <div class="condition-key">
+      <span class="key-label">Key:</span>
+      <div class="key-items">
+        <div class="key-item"><div class="key-dot" style="background:var(--wind-green)"></div> EPIC (15–22 kts, cross-shore, clean)</div>
+        <div class="key-item"><div class="key-dot" style="background:var(--sky)"></div> GOOD (12–28 kts, cross/onshore)</div>
+        <div class="key-item"><div class="key-dot" style="background:var(--wind-orange)"></div> MARGINAL (8–12 or 28–35 kts)</div>
+        <div class="key-item"><div class="key-dot" style="background:var(--wind-red)"></div> POOR / OFFSHORE ⚠ (N/NE/NW = blown out to sea)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tide chart -->
+  <div class="forecast-section">
+    <div class="section-header">
+      <span class="section-icon">🌊</span>
+      <span class="section-title">Tide Chart</span>
+      <span style="margin-left:auto;" id="waterTempBadge"></span>
+    </div>
+    <div class="tide-chart-wrap">
+      <div class="tide-svg-container">
+        <svg id="tideSvg" width="100%" height="120" viewBox="0 0 800 120" preserveAspectRatio="none"></svg>
+      </div>
+      <div class="tide-labels" id="tideLabels"></div>
+    </div>
+    <div class="sun-strip" id="sunStrip"></div>
+  </div>
+
+</main>
+
+<!-- ====== BOTTOM NAV ====== -->
+<nav id="bottomNav">
+  <button class="nav-btn active" onclick="switchTab('forecast')" id="navForecast">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6l9-3 9 3M3 18l9 3 9-3"/></svg>
+    <span>Forecast</span>
+  </button>
+  <button class="nav-btn" onclick="switchTab('sessions')" id="navSessions">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    <span>Sessions</span>
+  </button>
+  <button class="nav-btn" onclick="switchTab('profile')" id="navProfile">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    <span>Profile</span>
+  </button>
+</nav>
+
+<!-- ====== SESSIONS PANEL ====== -->
+<div id="sessionsPanel" style="display:none;padding-bottom:80px;">
+  <div style="margin:20px 24px 0;display:flex;gap:10px;">
+    <button onclick="openLogSession()" style="flex:1;padding:14px;background:linear-gradient(135deg,rgba(0,229,160,0.15),rgba(91,196,245,0.1));border:1px solid rgba(0,229,160,0.35);border-radius:12px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>LOG SESSION
+    </button>
+    <button onclick="exportSessions()" title="Export CSV" style="padding:14px 16px;background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);border-radius:12px;color:var(--sky);cursor:pointer;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </button>
+  </div>
+  <div id="windAlertBanner" style="display:none;margin:12px 24px 0;padding:12px 16px;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.3);border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--wind-green);letter-spacing:1px;"></div>
+  <div id="sessionStats" style="margin:16px 24px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;"></div>
+  <div id="sessionStreak" style="margin:12px 24px 0;"></div>
+  <div style="margin:12px 24px 0;background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;padding:16px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);letter-spacing:3px;margin-bottom:10px;">THIS WEEK — BEST WINDOWS</div>
+    <div id="weekCalendar" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;"></div>
+  </div>
+  <div style="margin:12px 24px 0;background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;padding:16px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);letter-spacing:3px;margin-bottom:10px;">SESSIONS PER MONTH</div>
+    <div id="sessionChart" style="height:80px;display:flex;align-items:flex-end;gap:3px;"></div>
+    <div id="sessionChartLabels" style="display:flex;gap:3px;margin-top:4px;"></div>
+  </div>
+  <div id="sessionList" style="margin:12px 24px 0;padding-bottom:8px;"></div>
+</div>
+
+<!-- ====== PROFILE PANEL ====== -->
+<div id="profilePanel" style="display:none;padding-bottom:80px;">
+  <div style="margin:20px 24px 0;">
+    <!-- Header with avatar -->
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;padding:18px;background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;">
+      <div id="profileAvatarDisplay" onclick="openAvatarPicker()" style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--wind-green),var(--sky));display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;cursor:pointer;border:2px solid rgba(0,229,160,0.3);" title="Tap to change avatar">🤙</div>
+      <div>
+        <div id="profileName" style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--text-bright);letter-spacing:2px;">WINGFOILER</div>
+        <div id="profileTagline" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);letter-spacing:1px;">Set up your profile below</div>
+      </div>
+      <div style="margin-left:auto;padding:5px 12px;background:linear-gradient(135deg,rgba(0,229,160,0.2),rgba(91,196,245,0.1));border:1px solid rgba(0,229,160,0.3);border-radius:20px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--wind-green);letter-spacing:2px;">⭐ PRO</div>
+    </div>
+    <!-- Rider -->
+    <div class="profile-section">
+      <div class="profile-section-title">RIDER PROFILE</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div><label class="profile-label">NAME</label><input id="pName" type="text" placeholder="Your name" oninput="saveProfile()" class="profile-input"></div>
+        <div><label class="profile-label">WEIGHT (KG)</label><input id="pWeight" type="number" placeholder="95" oninput="saveProfile()" class="profile-input"></div>
+        <div><label class="profile-label">EXPERIENCE</label>
+          <select id="pLevel" onchange="saveProfile()" class="profile-select">
+            <option value="beginner">Beginner</option><option value="intermediate">Intermediate</option>
+            <option value="advanced" selected>Advanced</option><option value="pro">Pro</option>
+          </select></div>
+        <div><label class="profile-label">HOME SPOT</label><select id="pHomeSpot" onchange="saveProfile()" class="profile-select"></select></div>
+      </div>
+    </div>
+    <!-- Locations -->
+    <div class="profile-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div class="profile-section-title" style="margin:0;">MY LOCATIONS</div>
+        <button onclick="openAddLocation()" class="profile-add-btn" style="color:var(--wind-green);border-color:rgba(0,229,160,0.25);background:rgba(0,229,160,0.08);">+ ADD LOCATION</button>
+      </div>
+      <div id="locationList" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div style="margin-top:10px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);">Tap a spot on the map to add it. Live weather worldwide.</div>
+    </div>
+    <!-- Quiver -->
+    <div class="profile-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div class="profile-section-title" style="margin:0;">MY QUIVER</div>
+        <button onclick="openAddWing()" class="profile-add-btn" style="color:var(--wind-green);border-color:rgba(0,229,160,0.25);background:rgba(0,229,160,0.08);">+ ADD WING</button>
+      </div>
+      <div id="quiverList" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div style="margin-top:10px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);">Wing recommendations update automatically in the forecast.</div>
+    </div>
+    <!-- Boards -->
+    <div class="profile-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div class="profile-section-title" style="margin:0;">MY BOARDS</div>
+        <button onclick="openAddBoard()" class="profile-add-btn" style="color:var(--sky);border-color:rgba(91,196,245,0.25);background:rgba(91,196,245,0.08);">+ ADD BOARD</button>
+      </div>
+      <div id="boardList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+    <!-- Wetsuits -->
+    <div class="profile-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div class="profile-section-title" style="margin:0;">MY WETSUITS</div>
+        <button onclick="openAddWetsuit()" class="profile-add-btn" style="color:#7ab3d4;border-color:rgba(122,179,212,0.25);background:rgba(122,179,212,0.08);">+ ADD WETSUIT</button>
+      </div>
+      <div id="wetsuitList" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div style="margin-top:10px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);">Wetsuit recommendation shows in forecast based on water temp.</div>
+    </div>
+    <!-- Help & Tutorial -->
+    <div class="profile-section">
+      <div class="profile-section-title">❓ HELP & TUTORIAL</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);margin-bottom:12px;">New to WingCast? Replay the getting started guide.</div>
+      <button onclick="showTutorial()" style="width:100%;padding:12px;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.25);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;">▶ REPLAY TUTORIAL</button>
+    </div>
+    <!-- Feedback at bottom -->
+    <div class="profile-section">
+      <div class="profile-section-title">💬 SEND FEEDBACK</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);margin-bottom:12px;">Ideas, bugs, or suggestions? We'd love to hear from you.</div>
+      <textarea id="feedbackText" rows="3" placeholder="Type your feedback here..." class="profile-input" style="resize:vertical;margin-bottom:10px;"></textarea>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div><label class="profile-label">NAME (optional)</label><input id="feedbackName" type="text" placeholder="Anonymous" class="profile-input"></div>
+        <div><label class="profile-label">EMAIL (optional)</label><input id="feedbackEmail" type="email" placeholder="for replies" class="profile-input"></div>
+      </div>
+      <button onclick="submitFeedback()" style="margin-top:12px;width:100%;padding:12px;background:linear-gradient(135deg,rgba(91,196,245,0.2),rgba(0,229,160,0.1));border:1px solid rgba(91,196,245,0.35);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;" id="feedbackBtn">SEND FEEDBACK</button>
+      <div id="feedbackStatus" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;text-align:center;margin-top:8px;display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== TUTORIAL MODAL ====== -->
+<div id="tutorialModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.97);z-index:2000;overflow-y:auto;padding:20px;">
+  <div style="max-width:480px;margin:0 auto;padding-bottom:40px;">
+    <div id="tutorialDots" style="display:flex;justify-content:center;gap:8px;margin:20px 0;"></div>
+    <div id="tutorialSlide" style="background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px;padding:28px;text-align:center;min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button id="tutorialSkipBtn" onclick="skipTutorial()" style="flex:1;padding:12px;background:rgba(91,196,245,0.05);border:1px solid var(--glass-border);border-radius:10px;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer;">SKIP</button>
+      <button id="tutorialNextBtn" onclick="tutorialNext()" style="flex:2;padding:12px;background:linear-gradient(135deg,rgba(0,229,160,0.2),rgba(91,196,245,0.1));border:1px solid rgba(0,229,160,0.4);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;">NEXT →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== LOG SESSION MODAL ====== -->
+<div id="logSessionModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.97);z-index:1000;overflow-y:auto;padding:20px 20px 40px;">
+  <div style="max-width:480px;margin:0 auto;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px;padding:22px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--wind-green);letter-spacing:3px;">LOG SESSION</div>
+      <button onclick="closeLogSession()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;line-height:1;">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div><label class="profile-label">DATE</label><input id="sDate" type="date" class="profile-input"></div>
+        <div><label class="profile-label">LOCATION</label><select id="sLocation" class="profile-select"></select></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div><label class="profile-label">START TIME</label><input id="sStart" type="time" class="profile-input"></div>
+        <div><label class="profile-label">DURATION</label>
+          <div style="display:flex;gap:6px;">
+            <select id="sDurHrs" class="profile-select" style="flex:1;">
+              <option value="0">0h</option><option value="1">1h</option><option value="2" selected>2h</option>
+              <option value="3">3h</option><option value="4">4h</option><option value="5">5h</option><option value="6">6h</option>
+            </select>
+            <select id="sDurMins" class="profile-select" style="flex:1;">
+              <option value="0" selected>00m</option><option value="15">15m</option><option value="30">30m</option><option value="45">45m</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div><label class="profile-label">WING USED</label><select id="sWing" class="profile-select"></select></div>
+        <div><label class="profile-label">BOARD USED</label><select id="sBoard" class="profile-select"></select></div>
+      </div>
+      <div><label class="profile-label">WETSUIT WORN</label><select id="sWetsuit" class="profile-select"></select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div><label class="profile-label">WIND (KTS)</label><input id="sWind" type="number" placeholder="Auto-filled" class="profile-input"></div>
+        <div><label class="profile-label">SWELL (M)</label><input id="sSwell" type="number" step="0.1" placeholder="Auto-filled" class="profile-input"></div>
+      </div>
+      <div>
+        <label class="profile-label">RATING</label>
+        <div style="display:flex;gap:6px;" id="sessionRating">
+          <button onclick="setRating(1)" data-r="1" class="star-btn">⭐</button>
+          <button onclick="setRating(2)" data-r="2" class="star-btn">⭐</button>
+          <button onclick="setRating(3)" data-r="3" class="star-btn">⭐</button>
+          <button onclick="setRating(4)" data-r="4" class="star-btn">⭐</button>
+          <button onclick="setRating(5)" data-r="5" class="star-btn">⭐</button>
+        </div>
+      </div>
+      <div><label class="profile-label">NOTES</label><textarea id="sNotes" rows="3" placeholder="How was it?" class="profile-input" style="resize:vertical;"></textarea></div>
+      <button onclick="saveSession()" style="padding:13px;background:linear-gradient(135deg,rgba(0,229,160,0.25),rgba(91,196,245,0.15));border:1px solid rgba(0,229,160,0.4);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;">SAVE SESSION</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ====== SETTINGS MODAL ====== -->
+<div id="settingsModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.97);z-index:1000;overflow-y:auto;padding:20px 20px 40px;">
+  <div style="max-width:480px;margin:0 auto;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px;padding:22px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--sky);letter-spacing:3px;">⚙️ SETTINGS</div>
+      <button onclick="closeSettings()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;line-height:1;">✕</button>
+    </div>
+    <!-- Wind Units -->
+    <div style="margin-bottom:20px;">
+      <label class="profile-label">WIND UNITS</label>
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <button onclick="setUnitPref('kts')" id="unitPref_kts" class="unit-btn">KTS</button>
+        <button onclick="setUnitPref('ms')"  id="unitPref_ms"  class="unit-btn">M/S</button>
+        <button onclick="setUnitPref('mph')" id="unitPref_mph" class="unit-btn">MPH</button>
+        <button onclick="setUnitPref('bft')" id="unitPref_bft" class="unit-btn">BFT</button>
+      </div>
+    </div>
+    <!-- Warning banners -->
+    <div style="margin-bottom:20px;">
+      <label class="profile-label">OFFSHORE WARNING BANNER</label>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+        <div onclick="toggleWarnings()" id="warningToggle" style="width:44px;height:24px;border-radius:12px;background:rgba(0,229,160,0.2);border:1px solid rgba(0,229,160,0.4);cursor:pointer;position:relative;transition:all 0.2s;">
+          <div id="warningToggleThumb" style="width:18px;height:18px;border-radius:50%;background:var(--wind-green);position:absolute;top:2px;left:22px;transition:left 0.2s;"></div>
+        </div>
+        <span id="warningToggleLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);">ON — visible</span>
+      </div>
+    </div>
+    <!-- Daily summary -->
+    <div style="margin-bottom:20px;">
+      <label class="profile-label">DAILY FORECAST SUMMARY</label>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+        <div onclick="toggleAISummary()" id="aiSummaryToggle" style="width:44px;height:24px;border-radius:12px;background:rgba(0,229,160,0.2);border:1px solid rgba(0,229,160,0.4);cursor:pointer;position:relative;transition:all 0.2s;">
+          <div id="aiSummaryThumb" style="width:18px;height:18px;border-radius:50%;background:var(--wind-green);position:absolute;top:2px;left:22px;transition:left 0.2s;"></div>
+        </div>
+        <span id="aiSummaryToggleLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);">ON — shown on forecast</span>
+      </div>
+    </div>
+    <!-- Wind alerts -->
+    <div style="margin-bottom:20px;">
+      <label class="profile-label" style="font-size:12px;letter-spacing:2px;">🔔 WIND ALERTS</label>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);margin:4px 0 10px;">Alert appears on Sessions tab when your spot hits your target window.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div><label class="profile-label">WATCH LOCATION</label><select id="alertLocation" onchange="saveNotifPrefs()" class="profile-select"></select></div>
+        <div><label class="profile-label">WIND (KTS)</label>
+          <div style="display:flex;gap:4px;align-items:center;">
+            <input id="alertMinWind" type="number" placeholder="Min" oninput="saveNotifPrefs()" class="profile-input" style="flex:1;text-align:center;">
+            <span style="color:var(--text-muted);font-size:11px;">–</span>
+            <input id="alertMaxWind" type="number" placeholder="Max" oninput="saveNotifPrefs()" class="profile-input" style="flex:1;text-align:center;">
+          </div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label class="profile-label">ALLOWED DIRECTIONS</label>
+        <div id="alertDirPicker" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;"></div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);margin-top:5px;">Tap to toggle. Red = offshore included.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:10px;">
+        <div><label class="profile-label">DAYS OF WEEK</label><div id="alertDayPicker" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;"></div></div>
+        <div><label class="profile-label">HOW FAR AHEAD</label>
+          <select id="alertLookahead" onchange="saveNotifPrefs()" class="profile-select">
+            <option value="0">Same day</option><option value="1" selected>1 day ahead</option>
+            <option value="2">2 days ahead</option><option value="3">3 days ahead</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div><label class="profile-label">FROM</label><input id="alertTimeFrom" type="time" value="07:00" onchange="saveNotifPrefs()" class="profile-input"></div>
+        <div><label class="profile-label">UNTIL</label><input id="alertTimeTo" type="time" value="21:00" onchange="saveNotifPrefs()" class="profile-input"></div>
+      </div>
+    </div>
+    <button onclick="closeSettings()" style="width:100%;padding:12px;background:rgba(91,196,245,0.1);border:1px solid rgba(91,196,245,0.3);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;">DONE</button>
+  </div>
+</div>
+
+<!-- ====== AVATAR PICKER MODAL ====== -->
+<div id="avatarModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.94);z-index:1000;overflow-y:auto;padding:20px;">
+  <div style="max-width:380px;margin:0 auto;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px;padding:22px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--wind-green);letter-spacing:3px;">CHOOSE AVATAR</div>
+      <button onclick="closeAvatarPicker()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div id="avatarGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;"></div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);text-align:center;">Tap to select your avatar</div>
+  </div>
+</div>
+
+<!-- ====== ADD WING MODAL ====== -->
+<div id="addWingModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.94);z-index:1000;padding:20px;display:none;">
+  <div style="max-width:380px;margin:40px auto 0;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px;padding:22px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--wind-green);letter-spacing:3px;">ADD WING</div>
+      <button onclick="closeModal('addWingModal')" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div><label class="profile-label">SIZE (M²)</label><input id="newWingSize" type="number" step="0.5" placeholder="e.g. 5.0" class="profile-input"></div>
+      <div><label class="profile-label">NAME / BRAND</label><input id="newWingName" type="text" placeholder="e.g. Duotone Echo 5m" class="profile-input"></div>
+      <button onclick="saveNewWing()" style="padding:12px;background:rgba(0,229,160,0.15);border:1px solid rgba(0,229,160,0.4);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;">ADD WING</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== ADD BOARD MODAL ====== -->
+<div id="addBoardModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.94);z-index:1000;padding:20px;">
+  <div style="max-width:380px;margin:40px auto 0;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px;padding:22px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--sky);letter-spacing:3px;">ADD BOARD</div>
+      <button onclick="closeModal('addBoardModal')" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div><label class="profile-label">BOARD NAME</label><input id="newBoardName" type="text" placeholder="e.g. Cabrinha XPS 135" class="profile-input"></div>
+      <div><label class="profile-label">VOLUME (LITRES) — optional</label><input id="newBoardVolume" type="number" placeholder="e.g. 135" class="profile-input"></div>
+      <button onclick="saveNewBoard()" style="padding:12px;background:rgba(91,196,245,0.15);border:1px solid rgba(91,196,245,0.4);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;">ADD BOARD</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== ADD WETSUIT MODAL ====== -->
+<div id="addWetsuitModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.94);z-index:1000;padding:20px;">
+  <div style="max-width:380px;margin:40px auto 0;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px;padding:22px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#7ab3d4;letter-spacing:3px;">ADD WETSUIT</div>
+      <button onclick="closeModal('addWetsuitModal')" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <label class="profile-label">THICKNESS</label>
+        <select id="newWetsuitThickness" onchange="autoFillWetsuitTemp()" class="profile-select">
+          <option value="">— select thickness —</option>
+          <option value="7mm+">7mm+ (extreme cold, below 3°C)</option>
+          <option value="6/5mm">6/5mm (4–7°C, autumn/winter)</option>
+          <option value="5/4mm">5/4mm (8–11°C, autumn)</option>
+          <option value="4/3mm">4/3mm (8–17°C, spring/autumn)</option>
+          <option value="3/2mm">3/2mm (12–17°C, spring)</option>
+          <option value="2mm">2mm shorty (18–20°C, spring/summer)</option>
+          <option value="1mm">1mm (21–25°C, summer)</option>
+          <option value="UV/Lycra">UV shirt/Lycra (26°C+, summer)</option>
+        </select>
+      </div>
+      <div><label class="profile-label">NAME / BRAND</label><input id="newWetsuitName" type="text" placeholder="e.g. O'Neill Hyperfreak 4/3" class="profile-input"></div>
+      <div>
+        <label class="profile-label">MIN WATER TEMP °C <span style="color:var(--wind-green);font-size:10px;">(auto-set from O'Neill guide)</span></label>
+        <input id="newWetsuitTemp" type="number" placeholder="Auto-filled" class="profile-input" readonly style="opacity:0.7;">
+      </div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);">⚠️ As a wingfoiler you spend more time out of water than surfers — consider going one thickness warmer than the guide suggests.</div>
+      <button onclick="saveNewWetsuit()" style="padding:12px;background:rgba(122,179,212,0.15);border:1px solid rgba(122,179,212,0.4);border-radius:10px;color:#7ab3d4;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;">ADD WETSUIT</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== ADD LOCATION MODAL ====== -->
+<div id="addLocationModal" style="display:none;position:fixed;inset:0;background:#040d1a;z-index:1000;flex-direction:column;">
+  <!-- Header bar -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--ocean-mid);border-bottom:1px solid var(--glass-border);flex-shrink:0;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--wind-green);letter-spacing:3px;">📍 ADD LOCATION</div>
+    <button onclick="closeModal('addLocationModal')" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;line-height:1;">✕</button>
+  </div>
+  <!-- Step instruction bar -->
+  <div id="addLocInstruction" style="padding:10px 16px;background:rgba(0,229,160,0.08);border-bottom:1px solid rgba(0,229,160,0.2);font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--wind-green);letter-spacing:1px;flex-shrink:0;text-align:center;">
+    STEP 1 — TAP THE MAP TO DROP A PIN ON YOUR LAUNCH SPOT
+  </div>
+  <!-- Map fills remaining space — compass overlays on top of it after pin drop -->
+  <div style="position:relative;flex:1;min-height:0;">
+    <div id="addLocMap" style="width:100%;height:100%;"></div>
+    <!-- Compass overlay — hidden until pin dropped -->
+    <div id="compassOverlay" style="display:none;position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(4,13,26,0.92);border:1px solid rgba(0,229,160,0.4);border-radius:16px;padding:14px 20px;z-index:1000;min-width:280px;backdrop-filter:blur(8px);">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--wind-green);letter-spacing:2px;text-align:center;margin-bottom:10px;">STEP 2 — DRAG THE ARROW TO POINT TOWARD THE WATER</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:20px;">
+        <div id="compassContainer" style="width:110px;height:110px;border-radius:50%;background:rgba(91,196,245,0.08);border:2px solid rgba(91,196,245,0.3);position:relative;cursor:grab;touch-action:none;flex-shrink:0;user-select:none;">
+          <div style="position:absolute;top:4px;left:50%;transform:translateX(-50%);font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);">N</div>
+          <div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);">S</div>
+          <div style="position:absolute;left:6px;top:50%;transform:translateY(-50%);font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);">W</div>
+          <div style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);">E</div>
+          <div id="compassArrow" style="position:absolute;top:50%;left:50%;width:4px;height:40px;background:linear-gradient(to top,rgba(0,229,160,0.2),var(--wind-green));border-radius:2px 2px 0 0;transform-origin:bottom center;transform:translateX(-50%) translateY(-100%) rotate(180deg);pointer-events:none;">
+            <div style="position:absolute;top:-7px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:10px solid var(--wind-green);"></div>
+          </div>
+          <div style="position:absolute;top:50%;left:50%;width:10px;height:10px;background:var(--wind-green);border-radius:50%;transform:translate(-50%,-50%);"></div>
+        </div>
+        <div style="text-align:center;">
+          <div id="compassBearingLabel" style="font-family:'Bebas Neue',sans-serif;font-size:42px;color:var(--wind-green);line-height:1;">S</div>
+          <div id="compassBearingDeg" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);">180°</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);margin-top:4px;line-height:1.4;">Beach faces this way<br>Offshore = opposite</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Bottom panel — name input and save -->
+  <div style="background:var(--ocean-mid);border-top:1px solid var(--glass-border);padding:14px 16px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;">
+    <div id="addLocCoords" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);text-align:center;display:none;"></div>
+    <div>
+      <label class="profile-label">LOCATION NAME</label>
+      <input id="newLocName" type="text" placeholder="e.g. Brighton Beach" class="profile-input">
+    </div>
+    <div id="newLocBearingDisplay" style="display:none;"></div>
+    <input id="newLocLat" type="hidden">
+    <input id="newLocLon" type="hidden">
+    <button onclick="saveNewLocation()" id="addLocSaveBtn" style="padding:12px;background:rgba(0,229,160,0.15);border:1px solid rgba(0,229,160,0.4);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;opacity:0.5;" disabled>DROP A PIN ON THE MAP FIRST</button>
+  </div>
+</div>
+
+<script>
+// Safe localStorage wrapper — handles Edge tracking prevention blocking storage
+const _store = {
+  get(k) { try { return localStorage.getItem(k); } catch(e) { return null; } },
+  set(k,v) { try { localStorage.setItem(k,v); } catch(e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch(e) {} }
+};
+
+// Force clear old service worker caches
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+  caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+}
+// ==================== DATA ENGINE ====================
+
+// South Coast UK beaches face SOUTH onto the English Channel.
+// TRUE OFFSHORE (genuinely dangerous — wind blows you OUT to sea): N, NNE, NE, NNW only
+// CROSS-SHORE (good wingfoil): SW, WSW, W, WNW, SE, ESE — wind runs along the beach
+// ONSHORE (safe but choppy): S, SSW, SSE — wind pushes you back to beach
+// Note: W and WNW are cross-shore for a south-facing beach, NOT offshore
+
+// Built-in base locations — all are removable by the user
+// Only Eastbourne is shown by default as an example
+const LOCATIONS = {};
+
+// Default example location shown on first install
+const EXAMPLE_LOCATIONS = {
+  eastbourne: {
+    name: "Eastbourne Beach",
+    lat: 50.768, lon: 0.290, waterTemp: 12,
+    sunrise: "06:28", sunset: "18:52", tideRange: [1.0, 6.8],
+    beachBearing: 150,
+    crossDirs: ['SW','WSW','W','WNW','SE','ESE','SSW'],
+    onDirs: ['S','SSW','SSE'],
+    offDirs: ['N','NNE','NE','NNW'],
+    allWindDirs: ['SW','WSW','W','SE','S','SSW','SSE','ESE'],
+    isCustom: true, // removable
+  },
+};
+
+const WEATHER_ICONS = {
+  sunny: '☀️', partcloud: '⛅', cloudy: '☁️', rain: '🌧️', drizzle: '🌦️', storm: '⛈️', fog: '🌫️'
+};
+
+function seededRandom(seed) {
+  let x = Math.sin(seed + 1) * 10000;
+  return x - Math.floor(x);
+}
+
+function generateWeekData(locKey) {
+  const loc = LOCATIONS[locKey] || Object.values(LOCATIONS)[0];
+  if (!loc) return [];
+  const days = [];
+  const today = new Date();
+
+  for (let d = 0; d < 7; d++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + d);
+    const seed = date.getDate() * 100 + d * 13;
+
+    // Base wind for the day (knots)
+    const baseWind = 8 + seededRandom(seed) * 22;
+    const weatherTypes = ['sunny','partcloud','cloudy','rain','drizzle'];
+    const dayWeather = weatherTypes[Math.floor(seededRandom(seed + 5) * weatherTypes.length)];
+
+    const hours = [];
+    for (let h = 0; h < 24; h += 3) {
+      const hseed = seed + h * 7;
+      // Diurnal variation: afternoon typically windier
+      const diurnal = h >= 9 && h <= 18 ? 1 + (seededRandom(hseed + 100) * 0.4) : 0.7 + seededRandom(hseed + 100) * 0.3;
+      const wind = Math.max(0, Math.round(baseWind * diurnal + (seededRandom(hseed + 1) - 0.5) * 4));
+      const gust = Math.round(wind * (1.1 + seededRandom(hseed + 2) * 0.3));
+      const dirIdx = Math.floor(seededRandom(hseed + 3) * loc.allWindDirs.length);
+      const dir = loc.allWindDirs[dirIdx];
+      // UK South Coast seasonal temps: Jan 4-9°C, Apr 9-14°C, Jul 17-22°C, Oct 11-16°C
+      const month = date.getMonth(); // 0=Jan, 11=Dec
+      const monthBaseTemp = [6, 6, 7, 9, 12, 15, 18, 18, 15, 12, 9, 7][month];
+      const monthRange = 5; // daily variation ±5°C around base
+      const diurnalBoost = (h >= 12 && h <= 15) ? 3 : 0; // slightly warmer midday
+      const temp = Math.round(monthBaseTemp + seededRandom(hseed + 4) * monthRange + diurnalBoost);
+      const swell = +(0.2 + seededRandom(hseed + 6) * 1.8).toFixed(1);
+      const wavePeriod = 7 + Math.round(seededRandom(hseed + 10) * 8);
+      const cloud = Math.round(seededRandom(hseed + 11) * 100);
+      const rain = Math.round(seededRandom(hseed + 7) * (dayWeather === 'rain' ? 80 : 20));
+      const weatherVar = ['sunny','partcloud','cloudy','rain','drizzle'];
+      const wIdx = Math.floor(seededRandom(hseed + 8) * weatherVar.length);
+      const weather = h < 6 || h > 20 ? 'cloudy' :
+        (dayWeather === 'rain' && seededRandom(hseed + 9) > 0.3 ? 'rain' : weatherVar[wIdx]);
+
+      hours.push({ hour: h, wind, gust, dir, temp, swell, wavePeriod, cloud, rain, weather });
+    }
+
+    // Generate tide data (sinusoidal with offset per day)
+    const tidePoints = [];
+    const phase = (d * 50 + Math.floor(seededRandom(seed + 20) * 120)) % 360;
+    const [tMin, tMax] = loc.tideRange;
+    const tMid = (tMin + tMax) / 2;
+    const tAmp = (tMax - tMin) / 2;
+    for (let t = 0; t <= 24; t++) {
+      const tideH = tMid + tAmp * Math.sin((t / 12.42 * Math.PI * 2) + (phase * Math.PI / 180));
+      tidePoints.push({ t, h: +tideH.toFixed(2) });
+    }
+
+    // High/low tide events
+    const tideEvents = [];
+    for (let t = 1; t < tidePoints.length - 1; t++) {
+      const p = tidePoints[t];
+      const prev = tidePoints[t-1].h;
+      const next = tidePoints[t+1].h;
+      if (p.h > prev && p.h > next) tideEvents.push({ t: p.t, h: p.h, type: 'HW' });
+      if (p.h < prev && p.h < next) tideEvents.push({ t: p.t, h: p.h, type: 'LW' });
+    }
+
+    days.push({ date, hours, tidePoints, tideEvents });
+  }
+  return days;
+}
+
+// Direction name to degrees
+const DIR_DEG = {
+  'N':0,'NNE':22.5,'NE':45,'ENE':67.5,'E':90,'ESE':112.5,'SE':135,'SSE':157.5,
+  'S':180,'SSW':202.5,'SW':225,'WSW':247.5,'W':270,'WNW':292.5,'NW':315,'NNW':337.5
+};
+
+function getDirType(dir, locKey) {
+  const loc = LOCATIONS[locKey];
+  if (!loc) return 'cross';
+
+  // Inland lake — all directions safe
+  if (loc.beachBearing === null) return 'cross';
+
+  // If location has explicit direction lists, use them (most accurate)
+  if (loc.offDirs && loc.offDirs.includes(dir)) return 'offshore';
+  if (loc.onDirs && loc.onDirs.includes(dir)) return 'onshore';
+  if (loc.crossDirs && loc.crossDirs.includes(dir)) return 'cross';
+
+  // Fallback: bearing-based calculation for custom locations
+  // beachBearing = direction the beach faces (where the water is)
+  // Wind FROM beachBearing +/- 60° = onshore
+  // Wind FROM beachBearing +/- 60-90° = cross-shore
+  // Wind FROM opposite side (beachBearing + 180° +/- 60°) = offshore
+  if (loc.beachBearing != null) {
+    const windDeg = DIR_DEG[dir];
+    if (windDeg === undefined) return 'cross';
+    // Angle of wind relative to beach facing direction
+    let diff = ((windDeg - loc.beachBearing) + 360) % 360;
+    if (diff > 180) diff = 360 - diff; // 0-180 range
+    // diff=0: wind blowing straight onshore
+    // diff=180: wind blowing straight offshore
+    if (diff <= 60)  return 'onshore';
+    if (diff <= 90)  return 'cross';
+    if (diff <= 150) return 'cross';
+    return 'offshore';
+  }
+
+  return 'cross'; // safe default
+}
+
+function getWingCondition(wind, gust, swell, dir, locKey) {
+  const dirType = getDirType(dir, locKey);
+
+  // OFFSHORE IS ALWAYS DANGEROUS — override everything, any wind speed
+  if (dirType === 'offshore') {
+    if (wind >= 5) return { label: 'OFFSHORE ⚠', cls: 'poor', pill: 'pill-poor', score: 'score-poor', danger: true };
+  }
+
+  const isCross = dirType === 'cross';
+  const isOnshore = dirType === 'onshore';
+
+  if (wind >= 15 && wind <= 22 && gust < 30 && swell < 1.2 && isCross) {
+    return { label: 'EPIC', cls: 'epic', pill: 'pill-epic', score: 'score-epic', danger: false };
+  }
+  if (wind >= 12 && wind <= 28 && swell < 1.8 && (isCross || isOnshore)) {
+    return { label: 'GOOD', cls: 'good', pill: 'pill-good', score: 'score-good', danger: false };
+  }
+  if ((wind >= 8 && wind < 12) || (wind > 28 && wind <= 35) || swell >= 1.8) {
+    return { label: 'MARGINAL', cls: 'marginal', pill: 'pill-marginal', score: 'score-marginal', danger: false };
+  }
+  return { label: 'POOR', cls: 'poor', pill: 'pill-poor', score: 'score-poor', danger: false };
+}
+
+function windClass(spd) {
+  if (spd < 8) return { bar: 'ws-calm', text: '' };
+  if (spd < 12) return { bar: 'ws-light', text: 'ws-light-text' };
+  if (spd <= 22) return { bar: 'ws-perfect', text: 'ws-perfect-text' };
+  if (spd <= 28) return { bar: 'ws-strong', text: 'ws-strong-text' };
+  if (spd <= 35) return { bar: 'ws-gusty', text: 'ws-gusty-text' };
+  return { bar: 'ws-storm', text: 'ws-storm-text' };
+}
+
+function tempClass(t) {
+  if (t >= 28) return 'temp-hot';
+  if (t >= 22) return 'temp-warm';
+  if (t >= 14) return 'temp-mild';
+  return 'temp-cold';
+}
+
+function formatHour(h) {
+  return h === 0 ? '00:00' : h === 12 ? '12:00' : `${String(h).padStart(2,'0')}:00`;
+}
+
+function dayName(date, i) {
+  if (i === 0) return 'TODAY';
+  return date.toLocaleDateString('en-GB', { weekday: 'short' }).toUpperCase();
+}
+
+// ==================== OPEN-METEO REAL WEATHER ====================
+
+// WMO weather code → our icon/label
+function wmoToWeather(code) {
+  if (code === 0) return 'sunny';
+  if (code <= 2) return 'partcloud';
+  if (code <= 3) return 'cloudy';
+  if (code <= 49) return 'fog';
+  if (code <= 57) return 'drizzle';
+  if (code <= 67) return 'rain';
+  if (code <= 77) return 'rain';
+  if (code <= 82) return 'rain';
+  return 'storm';
+}
+
+// Convert degrees to compass direction
+function degToCompass(deg) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+
+// Convert m/s to knots
+function msToKts(ms) { return Math.round(ms * 1.94384); }
+
+async function fetchRealWeather(locKey) {
+  const loc = LOCATIONS[locKey];
+
+  // Fetch weather + marine in parallel
+  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}` +
+    `&hourly=temperature_2m,precipitation_probability,weathercode,windspeed_10m,windgusts_10m,winddirection_10m,cloudcover` +
+    `&wind_speed_unit=ms&timezone=Europe%2FLondon&forecast_days=7`;
+
+  const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${loc.lat}&longitude=${loc.lon}` +
+    `&hourly=wave_height,swell_wave_height,swell_wave_direction,swell_wave_period,wave_period` +
+    `&timezone=Europe%2FLondon&forecast_days=7`;
+
+  const [weatherResp, marineResp] = await Promise.all([
+    fetch(weatherUrl),
+    fetch(marineUrl).catch(() => null), // marine may fail for inland (Bewl Water)
+  ]);
+
+  if (!weatherResp.ok) throw new Error('Open-Meteo weather fetch failed');
+  const weatherData = await weatherResp.json();
+  const marineData = marineResp && marineResp.ok ? await marineResp.json() : null;
+
+  return { weather: weatherData.hourly, marine: marineData ? marineData.hourly : null };
+}
+
+function buildWeekDataFromAPI(locKey, apiData) {
+  const loc = LOCATIONS[locKey] || Object.values(LOCATIONS)[0];
+  if (!loc) return [];
+  const { weather: apiHourly, marine: apiMarine } = apiData;
+  const days = [];
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  for (let d = 0; d < 7; d++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + d);
+    const seed = date.getDate() * 100 + d * 13;
+
+    const hours = [];
+    for (let h = 0; h < 24; h += 3) {
+      const idx = d * 24 + h;
+
+      // Weather data
+      const windMs = apiHourly.windspeed_10m[idx] || 0;
+      const gustMs = apiHourly.windgusts_10m[idx] || windMs * 1.3;
+      const windDeg = apiHourly.winddirection_10m[idx] || 0;
+      const temp = Math.round(apiHourly.temperature_2m[idx] ?? 10);
+      const rain = apiHourly.precipitation_probability[idx] || 0;
+      const wmoCode = apiHourly.weathercode[idx] || 1;
+
+      const wind = msToKts(windMs);
+      const gust = msToKts(gustMs);
+      const dir = degToCompass(windDeg);
+      const weather = wmoToWeather(wmoCode);
+      const cloud = apiHourly.cloudcover?.[idx] ?? 50;
+
+      // Real swell + wave period from marine API
+      let swell, wavePeriod;
+      if (apiMarine && apiMarine.wave_height && apiMarine.wave_height[idx] != null) {
+        const waveH = apiMarine.wave_height[idx];
+        const swellH = apiMarine.swell_wave_height?.[idx];
+        swell = +(swellH != null ? swellH : waveH).toFixed(1);
+        // Prefer swell period over wave period
+        wavePeriod = Math.round(apiMarine.swell_wave_period?.[idx] || apiMarine.wave_period?.[idx] || 8);
+      } else {
+        const hseed = seed + h * 7;
+        swell = +(0.1 + seededRandom(hseed + 6) * 0.4).toFixed(1);
+        wavePeriod = 8 + Math.round(seededRandom(hseed + 9) * 6);
+      }
+
+      hours.push({ hour: h, wind, gust, dir, temp, swell, wavePeriod, cloud, rain, weather });
+    }
+
+    // Tides still simulated (no free tide API)
+    const tidePoints = [];
+    const phase = (d * 50 + Math.floor(seededRandom(seed + 20) * 120)) % 360;
+    const [tMin, tMax] = loc.tideRange;
+    const tMid = (tMin + tMax) / 2;
+    const tAmp = (tMax - tMin) / 2;
+    for (let t = 0; t <= 24; t++) {
+      const tideH = tMid + tAmp * Math.sin((t / 12.42 * Math.PI * 2) + (phase * Math.PI / 180));
+      tidePoints.push({ t, h: +tideH.toFixed(2) });
+    }
+
+    const tideEvents = [];
+    for (let t = 1; t < tidePoints.length - 1; t++) {
+      const p = tidePoints[t];
+      if (p.h > tidePoints[t-1].h && p.h > tidePoints[t+1].h) tideEvents.push({ t: p.t, h: p.h, type: 'HW' });
+      if (p.h < tidePoints[t-1].h && p.h < tidePoints[t+1].h) tideEvents.push({ t: p.t, h: p.h, type: 'LW' });
+    }
+
+    days.push({ date, hours, tidePoints, tideEvents });
+  }
+  return days;
+}
+
+// ==================== WIND UNITS ====================
+
+const WIND_UNITS = ['kts', 'ms', 'mph', 'bft'];
+let windUnit = 'kts'; // default
+
+function nextUnit() {
+  const idx = WIND_UNITS.indexOf(windUnit);
+  windUnit = WIND_UNITS[(idx + 1) % WIND_UNITS.length];
+  document.getElementById('unitToggleBtn').textContent = unitLabel(windUnit);
+  // Re-render everything that shows wind
+  renderBanner();
+  renderStats();
+  renderForecastTable();
+}
+
+function unitLabel(u) {
+  return { kts: 'KTS', ms: 'M/S', mph: 'MPH', bft: 'BFT' }[u];
+}
+
+// Convert knots to display unit
+function cvtWind(kts) {
+  switch (windUnit) {
+    case 'ms':  return Math.round(kts * 0.514444);
+    case 'mph': return Math.round(kts * 1.15078);
+    case 'bft': return ktsToBft(kts);
+    default:    return kts; // kts
+  }
+}
+
+function ktsToBft(kts) {
+  if (kts < 1)   return 0;
+  if (kts < 4)   return 1;
+  if (kts < 7)   return 2;
+  if (kts < 11)  return 3;
+  if (kts < 17)  return 4;
+  if (kts < 22)  return 5;
+  if (kts < 28)  return 6;
+  if (kts < 34)  return 7;
+  if (kts < 41)  return 8;
+  if (kts < 48)  return 9;
+  if (kts < 56)  return 10;
+  if (kts < 64)  return 11;
+  return 12;
+}
+
+function windUnitSuffix() {
+  return unitLabel(windUnit).toLowerCase();
+}
+
+let weekData = [];
+let currentLocation = '';
+let selectedDay = 0;
+let usingRealData = false;
+
+function showLoadingState() {
+  document.getElementById('conditionsBanner').innerHTML =
+    `<div style="margin:20px 24px;padding:20px 28px;border-radius:12px;border:1px solid var(--glass-border);background:var(--glass);display:flex;align-items:center;gap:16px;">
+      <div style="width:24px;height:24px;border:3px solid var(--sky);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--text-dim);letter-spacing:2px;">FETCHING LIVE FORECAST...</div>
+    </div>`;
+  // Add spin keyframe if not present
+  if (!document.getElementById('spinStyle')) {
+    const s = document.createElement('style');
+    s.id = 'spinStyle';
+    s.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+    document.head.appendChild(s);
+  }
+}
+
+function showDataSourceBadge(isReal) {
+  // Update or create a small badge showing data source
+  let badge = document.getElementById('dataSrcBadge');
+  if (!badge) {
+    badge = document.createElement('div');
+    badge.id = 'dataSrcBadge';
+    badge.style.cssText = 'margin:0 24px 12px;padding:6px 14px;border-radius:6px;font-family:\'Barlow Condensed\',sans-serif;font-size:12px;letter-spacing:1px;display:flex;align-items:center;gap:8px;';
+    document.getElementById('conditionsBanner').insertAdjacentElement('afterend', badge);
+  }
+  if (isReal) {
+    badge.style.background = 'rgba(0,229,160,0.07)';
+    badge.style.border = '1px solid rgba(0,229,160,0.2)';
+    badge.style.color = 'var(--wind-green)';
+    badge.innerHTML = '🛰️ Live data: Open-Meteo · Temp, wind & swell real · Tides estimated';
+  } else {
+    badge.style.background = 'rgba(247,201,72,0.07)';
+    badge.style.border = '1px solid rgba(247,201,72,0.2)';
+    badge.style.color = 'var(--wind-yellow)';
+    badge.innerHTML = '📡 Offline — showing estimated forecast';
+  }
+}
+
+function changeLocation() {
+  currentLocation = document.getElementById('locationSelect').value;
+  updateOffshoreInfoBar();
+  init();
+}
+
+function renderAll() {
+  renderDate();
+  renderBanner();
+  renderStats();
+  renderDayTabs();
+  renderForecastTable();
+  renderTideChart();
+  initWindMap();
+}
+
+function renderDate() {
+  const el = document.getElementById('currentDate');
+  if (!el) return;
+  el.textContent = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }).toUpperCase();
+}
+
+function renderBanner() {
+  const loc = LOCATIONS[currentLocation] || Object.values(LOCATIONS)[0];
+  if (!weekData.length || !weekData[0].hours) return;
+  const now = weekData[0].hours[3]; // ~9am today
+  if (!now) return;
+  const cond = getWingCondition(now.wind, now.gust, now.swell, now.dir, currentLocation);
+  const wc = windClass(now.wind);
+
+  const descs = {
+    epic: 'Perfect conditions — get on the water NOW',
+    good: 'Solid session ahead, worth rigging up',
+    marginal: 'Doable but not ideal — check local report',
+    poor: cond.danger ? '⚠ OFFSHORE WIND — DO NOT LAUNCH. Risk of being blown out to sea.' : 'Stay on land today'
+  };
+
+  document.getElementById('conditionsBanner').innerHTML = `
+    <div class="conditions-banner banner-${cond.cls}">
+      <div class="banner-top-row">
+        <div>
+          <div class="banner-label">${cond.label}</div>
+          <div class="banner-desc">${descs[cond.cls]}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="text-align:center;">
+            <div style="width:44px;height:44px;border-radius:50%;background:rgba(91,196,245,0.12);border:1px solid rgba(91,196,245,0.25);display:flex;align-items:center;justify-content:center;margin:0 auto 2px;">
+              <div class="wind-arrow" id="mainArrow" style="width:16px;height:16px;background:var(--sky);clip-path:polygon(50% 0%,100% 100%,50% 75%,0% 100%);transform-origin:center;"></div>
+            </div>
+            <div style="font-family:'Barlow Condensed';font-size:13px;color:var(--sky);letter-spacing:1px;">${now.dir}</div>
+          </div>
+        </div>
+      </div>
+      <div class="banner-now">
+        <div class="now-stat">
+          <div class="now-stat-val ${wc.text}">${cvtWind(now.wind)}</div>
+          <div class="now-stat-unit">${unitLabel(windUnit)}</div>
+          <div class="now-stat-label">Wind</div>
+        </div>
+        <div class="now-stat">
+          <div class="now-stat-val" style="color:var(--wind-yellow)">${cvtWind(now.gust)}</div>
+          <div class="now-stat-unit">${unitLabel(windUnit)}</div>
+          <div class="now-stat-label">Gusts</div>
+        </div>
+        <div class="now-stat">
+          <div class="now-stat-val" style="color:var(--sky)">${now.swell}</div>
+          <div class="now-stat-unit">M</div>
+          <div class="now-stat-label">Swell</div>
+        </div>
+        <div class="now-stat">
+          <div class="now-stat-val ${tempClass(now.temp)}">${now.temp}°</div>
+          <div class="now-stat-unit">°C</div>
+          <div class="now-stat-label">Temp</div>
+        </div>
+        ${(() => {
+          const wing = recommendWing(now.wind);
+          return wing ? `<div class="now-stat">
+            <div class="now-stat-val" style="color:${wing.color};font-size:1.1em;">${wing.size}</div>
+            <div class="now-stat-unit">WING</div>
+            <div class="now-stat-label">Rec.</div>
+          </div>` : '<div class="now-stat"></div>';
+        })()}
+      </div>
+    </div>
+  `;
+
+  // Animate arrow — add 180° so arrow points where wind is GOING (not coming from)
+  const dirDeg = { 'N':0,'NNE':22,'NE':45,'ENE':67,'E':90,'ESE':112,'SE':135,'SSE':157,
+    'S':180,'SSW':202,'SW':225,'WSW':247,'W':270,'WNW':292,'NW':315,'NNW':337 };
+  const deg = (dirDeg[now.dir] || 0) + 180;
+  setTimeout(() => {
+    const arrow = document.getElementById('mainArrow');
+    if (arrow) arrow.style.transform = `rotate(${deg}deg)`;
+  }, 100);
+}
+
+function renderStats() {
+  const day = weekData[selectedDay];
+  if (!day || !day.hours || !day.hours.length) return;
+  const winds = day.hours.map(h => h.wind);
+  const maxW = Math.max(...winds);
+  const avgW = Math.round(winds.reduce((a,b)=>a+b,0)/winds.length);
+  const maxGust = Math.max(...day.hours.map(h => h.gust));
+  const maxSwell = Math.max(...day.hours.map(h => h.swell));
+  const avgTemp = Math.round(day.hours.reduce((a,h)=>a+h.temp,0)/day.hours.length);
+
+  // Count wingfoil hours
+  const wingHours = day.hours.filter(h => {
+    const c = getWingCondition(h.wind, h.gust, h.swell, h.dir, currentLocation);
+    return c.cls === 'epic' || c.cls === 'good';
+  }).length * 3;
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-card-label">Max Wind</div>
+      <div class="stat-card-val" style="color:${maxW > 30 ? 'var(--wind-orange)' : 'var(--wind-green)'}">${cvtWind(maxW)}</div>
+      <div class="stat-card-sub">${unitLabel(windUnit)} — avg ${cvtWind(avgW)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Max Gusts</div>
+      <div class="stat-card-val" style="color:var(--wind-yellow)">${cvtWind(maxGust)}</div>
+      <div class="stat-card-sub">${windUnitSuffix()} peak</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Max Swell</div>
+      <div class="stat-card-val" style="color:var(--sky)">${maxSwell}</div>
+      <div class="stat-card-sub">metres</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Air Temp</div>
+      <div class="stat-card-val ${tempClass(avgTemp)}">${avgTemp}°</div>
+      <div class="stat-card-sub">°C average</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Wing Hours</div>
+      <div class="stat-card-val" style="color:var(--wind-green)">${wingHours}</div>
+      <div class="stat-card-sub">hrs good+ conditions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Water Temp</div>
+      <div class="stat-card-val" style="color:var(--sky)">${LOCATIONS[currentLocation].waterTemp}°</div>
+      <div class="stat-card-sub">°C sea surface</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Wetsuit</div>
+      <div class="stat-card-val" style="color:${recommendWetsuit(LOCATIONS[currentLocation].waterTemp).color};font-size:1em;">${recommendWetsuit(LOCATIONS[currentLocation].waterTemp).suit}</div>
+      <div class="stat-card-sub">${recommendWetsuit(LOCATIONS[currentLocation].waterTemp).tip}</div>
+    </div>
+  `;
+}
+
+function renderDayTabs() {
+  const tabs = weekData.map((day, i) => {
+    const cond = getBestCondition(day);
+    const active = i === selectedDay ? 'active' : '';
+    return `<div class="day-tab ${active}" onclick="selectDay(${i})">
+      <span class="day-tab-name">${dayName(day.date, i)}</span>
+      <span style="font-size:11px;color:var(--text-muted)">${day.date.getDate()}/${day.date.getMonth()+1}</span>
+      <div class="day-tab-score ${cond.score}"></div>
+    </div>`;
+  });
+  document.getElementById('dayTabs').innerHTML = tabs.join('');
+}
+
+function getBestCondition(day) {
+  let best = { cls: 'poor', score: 'score-poor' };
+  for (const h of day.hours) {
+    const c = getWingCondition(h.wind, h.gust, h.swell, h.dir, currentLocation);
+    if (c.cls === 'epic') return c;
+    if (c.cls === 'good') best = c;
+    else if (c.cls === 'marginal' && best.cls === 'poor') best = c;
+  }
+  return best;
+}
+
+function selectDay(i) {
+  selectedDay = i;
+  mapHourIdx = 3;
+  if (mapAnimating) toggleMapAnimation();
+  renderStats();
+  renderDayTabs();
+  renderForecastTable();
+  renderTideChart();
+}
+
+function renderForecastTable() {
+  const u = unitLabel(windUnit);
+  const thW = document.getElementById('thWind'); if(thW) thW.textContent = u;
+  const thG = document.getElementById('thGust'); if(thG) thG.textContent = u;
+
+  const day = weekData[selectedDay];
+  if (!day || !day.hours || !day.hours.length) return;
+
+  // Find best 3 hours to highlight
+  const scored = day.hours.map((h, i) => {
+    const c = getWingCondition(h.wind, h.gust, h.swell, h.dir, currentLocation);
+    const score = c.cls === 'epic' ? 4 : c.cls === 'good' ? 3 : c.cls === 'marginal' ? 1 : 0;
+    return { i, score, h };
+  });
+  const bestScore = Math.max(...scored.map(s => s.score));
+  const bestHours = new Set(
+    bestScore >= 3 ? scored.filter(s => s.score === bestScore).map(s => s.i) : []
+  );
+
+  const rows = day.hours.map((h, rowIdx) => {
+    const cond = getWingCondition(h.wind, h.gust, h.swell, h.dir, currentLocation);
+    const wc = windClass(h.wind);
+    const wing = recommendWing(h.wind);
+    const isBest = bestHours.has(rowIdx);
+    const rowStyle = isBest ? 'background:rgba(0,229,160,0.06);' : '';
+
+    // Wind speed colour cell
+    const windCol = wc.text === 'ws-perfect-text' ? '#00e5a0' : wc.text === 'ws-light-text' ? '#7ab3d4' : wc.text === 'ws-strong-text' ? '#f7c948' : wc.text === 'ws-gusty-text' ? '#ff8c42' : wc.text === 'ws-storm-text' ? '#ff3b5c' : 'var(--text-dim)';
+
+    // Direction arrow SVG — points in direction wind is GOING (add 180° to meteorological bearing)
+    const dirDeg = (DIR_DEG[h.dir] || 0) + 180;
+    const arrowColor = windColor(h.wind);
+    const dirArrow = `<svg width="20" height="20" viewBox="0 0 24 24" style="transform:rotate(${dirDeg}deg);display:inline-block;">
+      <path d="M12 2 L16 10 L12 8 L8 10 Z" fill="${arrowColor}"/>
+      <line x1="12" y1="8" x2="12" y2="20" stroke="${arrowColor}" stroke-width="2" stroke-linecap="round"/>
+    </svg>`;
+
+    // Offshore indicator in direction cell
+    const dt = getDirType(h.dir, currentLocation);
+    const dirLabel = dt === 'offshore'
+      ? `<div style="font-family:'Barlow Condensed';font-size:9px;color:var(--wind-red);letter-spacing:1px;">⚠OFF</div>`
+      : dt === 'onshore'
+      ? `<div style="font-family:'Barlow Condensed';font-size:9px;color:var(--wind-yellow);letter-spacing:1px;">ON</div>`
+      : `<div style="font-family:'Barlow Condensed';font-size:9px;color:var(--wind-green);letter-spacing:1px;">✓X</div>`;
+
+    // Swell colour
+    const swellCol = h.swell > 2.0 ? '#ff3b5c' : h.swell > 1.5 ? '#ff8c42' : h.swell > 0.8 ? '#f7c948' : 'var(--sky)';
+
+    // Wave period colour (longer = cleaner)
+    const periodCol = h.wavePeriod >= 12 ? '#00e5a0' : h.wavePeriod >= 9 ? '#f7c948' : 'var(--text-dim)';
+
+    // Cloud colour
+    const cloudCol = h.cloud > 80 ? 'var(--text-dim)' : h.cloud > 50 ? '#7ab3d4' : '#f7c948';
+
+    // Temp colour
+    const tempCol = h.temp >= 20 ? '#ff8c42' : h.temp >= 14 ? '#f7c948' : h.temp >= 10 ? '#5bc4f5' : '#7ab3d4';
+
+    // Best hour star
+    const bestStar = isBest ? '<span style="color:#f7c948;font-size:10px;margin-left:2px;">★</span>' : '';
+
+    return `<tr style="${rowStyle}">
+      <td style="font-size:11px;color:var(--text-dim);letter-spacing:1px;">${formatHour(h.hour)}${bestStar}</td>
+      <td><span class="condition-pill ${cond.pill}" style="font-size:10px;padding:3px 7px;"><span class="pill-dot"></span>${cond.label}</span></td>
+      <td style="color:${windCol};font-family:'Bebas Neue',sans-serif;font-size:20px;text-align:center;">${cvtWind(h.wind)}</td>
+      <td style="color:var(--text-dim);font-family:'Bebas Neue',sans-serif;font-size:18px;text-align:center;">${cvtWind(h.gust)}</td>
+      <td style="text-align:center;">${wing ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;color:${wing.color};">${wing.size}</span>` : '<span style="color:var(--text-muted);font-size:11px;">—</span>'}</td>
+      <td style="text-align:center;">${dirArrow}${dirLabel}</td>
+      <td style="text-align:center;font-size:18px;">${WEATHER_ICONS[h.weather] || '⛅'}</td>
+      <td style="color:${tempCol};font-family:'Bebas Neue',sans-serif;font-size:18px;text-align:center;">${h.temp}°</td>
+      <td style="color:${swellCol};font-family:'Bebas Neue',sans-serif;font-size:18px;text-align:center;">${h.swell}</td>
+      <td style="color:${periodCol};font-family:'Bebas Neue',sans-serif;font-size:18px;text-align:center;">${h.wavePeriod||'—'}</td>
+      <td style="color:${cloudCol};font-family:'Bebas Neue',sans-serif;font-size:18px;text-align:center;">${h.cloud??'—'}</td>
+    </tr>`;
+  });
+  document.getElementById('forecastBody').innerHTML = rows.join('');
+}
+
+function renderTideChart() {
+  const loc = LOCATIONS[currentLocation] || Object.values(LOCATIONS)[0];
+  const day = weekData[selectedDay];
+  if (!loc || !day || !day.tidePoints) return;
+
+  // Bewl Water is an inland lake — no tides
+  if (loc.tideRange[0] === 0 && loc.tideRange[1] === 0) {
+    document.getElementById('tideSvg').innerHTML = `<text x="400" y="60" fill="rgba(91,196,245,0.4)" font-size="14" font-family="Barlow Condensed" text-anchor="middle" letter-spacing="3">INLAND LAKE — NO TIDAL DATA</text>`;
+    document.getElementById('tideLabels').innerHTML = '';
+    document.getElementById('waterTempBadge').innerHTML = `<span class="water-badge">🌊 Water ${loc.waterTemp}°C</span>`;
+    document.getElementById('sunStrip').innerHTML = `<div class="sun-item">🌅 <span>Sunrise ${loc.sunrise}</span></div><div class="sun-item">🌇 <span>Sunset ${loc.sunset}</span></div>`;
+    return;
+  }
+  const [tMin, tMax] = loc.tideRange;
+  const W = 800, H = 120;
+  const pts = day.tidePoints;
+  const padX = 20, padY = 14;
+
+  const xScale = (t) => padX + (t / 24) * (W - padX * 2);
+  const yScale = (h) => H - padY - ((h - tMin) / (tMax - tMin)) * (H - padY * 2);
+
+  // Build SVG path
+  let path = `M ${xScale(pts[0].t)} ${yScale(pts[0].h)}`;
+  for (let i = 1; i < pts.length; i++) {
+    const cp1x = xScale(pts[i-1].t + 0.5);
+    const cp1y = yScale(pts[i-1].h);
+    const cp2x = xScale(pts[i].t - 0.5);
+    const cp2y = yScale(pts[i].h);
+    path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${xScale(pts[i].t)} ${yScale(pts[i].h)}`;
+  }
+
+  // Fill path
+  const fillPath = path + ` L ${xScale(24)} ${H} L ${xScale(0)} ${H} Z`;
+
+  // Hour grid lines
+  let gridLines = '';
+  for (let h = 0; h <= 24; h += 6) {
+    const x = xScale(h);
+    gridLines += `<line x1="${x}" y1="0" x2="${x}" y2="${H}" stroke="rgba(91,196,245,0.07)" stroke-width="1"/>`;
+    if (h < 24) gridLines += `<text x="${x+3}" y="${H-3}" fill="rgba(91,196,245,0.3)" font-size="9" font-family="JetBrains Mono">${String(h).padStart(2,'0')}:00</text>`;
+  }
+
+  // Tide event markers
+  let markers = '';
+  for (const ev of day.tideEvents) {
+    const x = xScale(ev.t);
+    const y = yScale(ev.h);
+    const isHigh = ev.type === 'HW';
+    markers += `
+      <circle cx="${x}" cy="${y}" r="4" fill="${isHigh ? '#5bc4f5' : '#3a6a8a'}" stroke="var(--ocean-deep)" stroke-width="1.5"/>
+      <text x="${x}" y="${isHigh ? y - 8 : y + 16}" fill="${isHigh ? '#5bc4f5' : '#7ab3d4'}" font-size="10" font-family="JetBrains Mono" text-anchor="middle">${ev.h}m</text>
+      <text x="${x}" y="${isHigh ? y - 19 : y + 26}" fill="${isHigh ? 'rgba(91,196,245,0.5)' : 'rgba(122,179,212,0.4)'}" font-size="8" font-family="Barlow Condensed" text-anchor="middle" letter-spacing="1">${ev.type}</text>
+    `;
+  }
+
+  // Current time indicator
+  const now = new Date();
+  const currentHour = now.getHours() + now.getMinutes() / 60;
+  let nowLine = '';
+  if (selectedDay === 0) {
+    const nx = xScale(currentHour);
+    nowLine = `<line x1="${nx}" y1="0" x2="${nx}" y2="${H}" stroke="rgba(0,229,160,0.5)" stroke-width="1.5" stroke-dasharray="3,3"/>
+    <text x="${nx+4}" y="12" fill="var(--wind-green)" font-size="9" font-family="JetBrains Mono">NOW</text>`;
+  }
+
+  document.getElementById('tideSvg').innerHTML = `
+    <defs>
+      <linearGradient id="tideGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="rgba(91,196,245,0.25)"/>
+        <stop offset="100%" stop-color="rgba(91,196,245,0.03)"/>
+      </linearGradient>
+    </defs>
+    ${gridLines}
+    <path d="${fillPath}" fill="url(#tideGrad)"/>
+    <path d="${path}" fill="none" stroke="#5bc4f5" stroke-width="2"/>
+    ${markers}
+    ${nowLine}
+  `;
+
+  // Tide event labels
+  const evLabels = day.tideEvents.map(ev => `
+    <div class="tide-label">
+      <div class="tide-time">${String(Math.floor(ev.t)).padStart(2,'0')}:${ev.t % 1 > 0 ? '30' : '00'}</div>
+      <div class="tide-height-label">${ev.h}m ${ev.type}</div>
+    </div>
+  `).join('');
+  document.getElementById('tideLabels').innerHTML = evLabels;
+
+  // Water temp & sun
+  document.getElementById('waterTempBadge').innerHTML =
+    `<span class="water-badge">🌊 Water ${loc.waterTemp}°C</span>`;
+
+  document.getElementById('sunStrip').innerHTML = `
+    <div class="sun-item">🌅 <span>Sunrise ${loc.sunrise}</span></div>
+    <div class="sun-item" style="color:var(--text-muted);font-size:11px;letter-spacing:2px;">
+      ${Math.round(LOCATIONS[currentLocation].tideRange[1] * 10)/10}m tidal range
+    </div>
+    <div class="sun-item">🌇 <span>Sunset ${loc.sunset}</span></div>
+  `;
+}
+
+
+// ==================== LEAFLET SATELLITE MAP ====================
+
+const SPOT_COORDS = {
+  royalparade: { lat: 50.77758, lon: 0.30778, label: 'Royal Parade' },
+  eastbourne:  { lat: 50.768, lon: 0.290,  label: 'Eastbourne' },
+  pevensey:    { lat: 50.820, lon: 0.358,  label: 'Pevensey' },
+  rye:         { lat: 50.920, lon: 0.760,  label: 'Rye' },
+  bewlwater:   { lat: 51.065, lon: 0.390,  label: 'Bewl Water' },
+  cooden:      { lat: 50.840, lon: 0.440,  label: 'Cooden' },
+  mudeford:    { lat: 50.723, lon: -1.742, label: 'Mudeford' },
+  seaford:     { lat: 50.770, lon: 0.100,  label: 'Seaford' },
+};
+
+// Keep SPOT_COORDS in sync with LOCATIONS (including custom spots)
+function syncSpotCoords() {
+  Object.entries(LOCATIONS).forEach(([k,v]) => {
+    if (!SPOT_COORDS[k]) SPOT_COORDS[k] = { lat: v.lat, lon: v.lon, label: v.name };
+  });
+}
+
+const DIR_TO_DEG = {
+  'N':0,'NNE':22.5,'NE':45,'ENE':67.5,'E':90,'ESE':112.5,'SE':135,'SSE':157.5,
+  'S':180,'SSW':202.5,'SW':225,'WSW':247.5,'W':270,'WNW':292.5,'NW':315,'NNW':337.5
+};
+
+let leafletMap = null;
+let leafletMarkers = {};
+let windArrowLayer = null;
+let mapHourIdx = 3;
+let mapAnimating = false;
+let mapAnimInterval = null;
+
+function windColor(spd) {
+  if (spd < 8)  return '#3a6a8a';
+  if (spd < 12) return '#7ab3d4';
+  if (spd < 22) return '#00e5a0';
+  if (spd < 28) return '#f7c948';
+  if (spd < 35) return '#ff8c42';
+  return '#ff3b5c';
+}
+
+function conditionColor(cond) {
+  const map = { epic:'#00e5a0', good:'#5bc4f5', marginal:'#f7c948', poor:'#ff3b5c' };
+  return map[cond.cls] || '#5bc4f5';
+}
+
+// Create SVG wind arrow as a Leaflet DivIcon
+function makeArrowIcon(spd, dirDeg) {
+  const col = windColor(spd);
+  const isMobile = window.innerWidth < 600;
+  const base = isMobile ? 0.85 : 1.0;
+
+  // Much larger sizes for visibility
+  const size = Math.round((spd < 8 ? 28 : spd < 15 ? 36 : spd < 25 ? 44 : 52) * base);
+  const strokeW = Math.round((spd < 8 ? 2 : spd < 15 ? 2.5 : spd < 25 ? 3 : 3.5) * base * 10) / 10;
+
+  const animId = `wa_${Math.round(dirDeg)}_${spd}`;
+  const dx = Math.round(Math.sin(dirDeg * Math.PI / 180) * 10 * base);
+  const dy = Math.round(-Math.cos(dirDeg * Math.PI / 180) * 10 * base);
+
+  if (!document.getElementById('style_' + animId)) {
+    const s = document.createElement('style');
+    s.id = 'style_' + animId;
+    s.textContent = `@keyframes ${animId} {
+      0%   { transform: translate(0,0) rotate(${dirDeg}deg); opacity:0.5; }
+      40%  { opacity: 1; }
+      100% { transform: translate(${dx}px,${dy}px) rotate(${dirDeg}deg); opacity:0; }
+    }`;
+    document.head.appendChild(s);
+  }
+
+  const duration = spd < 5 ? 3.5 : spd < 12 ? 2.5 : spd < 22 ? 1.8 : 1.2;
+  // Always add glow for better visibility on satellite
+  const glow = `filter:drop-shadow(0 0 ${spd >= 20 ? 4 : 2}px ${col});`;
+
+  const svg = `<div style="width:${size}px;height:${size}px;animation:${animId} ${duration}s linear infinite;${glow}">
+    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="-14 -14 28 28" style="transform:rotate(${dirDeg}deg)">
+      <line x1="0" y1="9" x2="0" y2="-7" stroke="${col}" stroke-width="${strokeW}" stroke-linecap="round"/>
+      <polygon points="0,-12 -5,-3 5,-3" fill="${col}"/>
+      ${spd >= 25 ? `<line x1="0" y1="2" x2="-5" y2="7" stroke="${col}" stroke-width="${strokeW*0.7}" stroke-linecap="round"/>` : ''}
+    </svg>
+  </div>`;
+
+  return L.divIcon({
+    html: svg,
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2],
+  });
+}
+
+// Create spot marker as a styled DivIcon
+function makeSpotIcon(locKey, cond, isSelected) {
+  const col = isSelected ? '#f7c948' : '#5bc4f5';
+  const spot = SPOT_COORDS[locKey];
+  const isMobile = window.innerWidth < 600;
+  const scale = isMobile ? 0.85 : 1.0;
+
+  const dotR = Math.round((isSelected ? 10 : 7) * scale);
+  const svgW = Math.round(48 * scale);
+  const svgH = Math.round(60 * scale);
+  const fontSize = Math.round((isSelected ? 11 : 10) * scale);
+
+  const ringStroke = isSelected ? `stroke="white" stroke-width="2.5"` : `stroke="#040d1a" stroke-width="2"`;
+  const pulse = isSelected ? `
+    <circle cx="0" cy="0" r="${dotR + 6}" fill="none" stroke="${col}" stroke-width="2" opacity="0.7">
+      <animate attributeName="r" values="${dotR+4};${dotR+14};${dotR+4}" dur="1.8s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.8;0;0.8" dur="1.8s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="0" cy="0" r="${dotR + 3}" fill="${col}" opacity="0.25"/>` : '';
+
+  const labelCol = isSelected ? '#f7c948' : 'rgba(255,255,255,0.9)';
+  const labelWeight = isSelected ? 700 : 500;
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${svgH}" viewBox="-24 -24 48 56">
+    ${pulse}
+    <circle cx="0" cy="0" r="${dotR}" fill="${col}" ${ringStroke}/>
+    <circle cx="0" cy="0" r="${Math.round(dotR * 0.35)}" fill="${isSelected ? 'white' : '#040d1a'}"/>
+    <text x="0" y="26" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="${fontSize}" font-weight="${labelWeight}" fill="${labelCol}" style="paint-order:stroke;stroke:#040d1a;stroke-width:3px;">${spot.label}</text>
+  </svg>`;
+
+  return L.divIcon({
+    html: svg,
+    className: '',
+    iconSize: [svgW, svgH],
+    iconAnchor: [svgW/2, svgH * 0.4],
+  });
+}
+
+function initLeafletMap() {
+  if (leafletMap) return;
+
+  const spot = SPOT_COORDS[currentLocation] || SPOT_COORDS['royalparade'] || { lat: 50.768, lon: 0.290 };
+
+  leafletMap = L.map('leafletMap', {
+    center: [spot.lat, spot.lon],
+    zoom: 12,
+    zoomControl: true,
+    attributionControl: true,
+  });
+
+  // ESRI World Imagery — free satellite tiles, no API key
+  L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {
+      attribution: '© Esri',
+      maxZoom: 18,
+    }
+  ).addTo(leafletMap);
+
+  // Shrink attribution to tiny text
+  const style = document.createElement('style');
+  style.textContent = `.leaflet-control-attribution { font-size: 9px !important; opacity: 0.4 !important; background: rgba(0,0,0,0.3) !important; color: #aaa !important; } .leaflet-control-attribution a { color: #aaa !important; }`;
+  document.head.appendChild(style);
+
+  // Add spot markers
+  updateMapMarkers();
+}
+
+function updateMapMarkers() {
+  if (!leafletMap || !weekData.length) return;
+
+  const day = weekData[selectedDay];
+  const hData = day.hours[Math.min(mapHourIdx, day.hours.length - 1)];
+
+  // Remove old wind arrow markers
+  if (windArrowLayer) {
+    windArrowLayer.forEach(m => leafletMap.removeLayer(m));
+  }
+  windArrowLayer = [];
+
+  // Update/create spot markers
+  Object.entries(SPOT_COORDS).forEach(([key, spot]) => {
+    const isSelected = key === currentLocation;
+    const cond = getWingCondition(hData.wind, hData.gust, hData.swell, hData.dir, key);
+
+    if (leafletMarkers[key]) {
+      leafletMap.removeLayer(leafletMarkers[key]);
+    }
+
+    const marker = L.marker([spot.lat, spot.lon], {
+      icon: makeSpotIcon(key, cond, isSelected),
+      zIndexOffset: isSelected ? 1000 : 0,
+    });
+
+    // Popup with quick condition summary
+    const dirType = getDirType(hData.dir, key);
+    const dirLabel = dirType === 'offshore' ? '⚠ OFFSHORE' : dirType === 'onshore' ? 'Onshore' : '✓ Cross-shore';
+    marker.bindPopup(`
+      <div style="font-family:'Barlow Condensed',sans-serif;min-width:140px;">
+        <div style="font-size:16px;font-weight:700;color:#040d1a;margin-bottom:4px;">${spot.label}</div>
+        <div style="font-size:13px;color:${conditionColor(cond)};font-weight:700;margin-bottom:6px;">${cond.label}</div>
+        <div style="font-size:12px;color:#333;">💨 ${cvtWind(hData.wind)} ${unitLabel(windUnit)} (gusts ${cvtWind(hData.gust)})</div>
+        <div style="font-size:12px;color:#333;">🧭 ${hData.dir} — ${dirLabel}</div>
+        <div style="font-size:12px;color:#333;">🌊 ${hData.swell}m swell · ${hData.temp}°C</div>
+        <div style="margin-top:8px;padding:4px 8px;background:${conditionColor(cond)}22;border-radius:4px;font-size:11px;text-align:center;font-weight:600;">Tap to select this spot</div>
+      </div>
+    `, { maxWidth: 200 });
+
+    marker.on('click', () => {
+      // Select this location
+      currentLocation = key;
+      document.getElementById('locationSelect').value = key;
+      leafletMap.setView([spot.lat, spot.lon], Math.max(leafletMap.getZoom(), 12));
+      init();
+    });
+
+    marker.addTo(leafletMap);
+    leafletMarkers[key] = marker;
+  });
+
+  // Add wind arrows on a grid across the visible map area
+  const bounds = leafletMap.getBounds();
+  const latStep = (bounds.getNorth() - bounds.getSouth()) / 5;
+  const lonStep = (bounds.getEast() - bounds.getWest()) / 7;
+  const dirDeg = ((DIR_TO_DEG[hData.dir] || 0) + 180) % 360;
+
+  for (let lat = bounds.getSouth() + latStep * 0.5; lat < bounds.getNorth(); lat += latStep) {
+    for (let lon = bounds.getWest() + lonStep * 0.5; lon < bounds.getEast(); lon += lonStep) {
+      const tooClose = Object.values(SPOT_COORDS).some(s =>
+        Math.abs(s.lat - lat) < latStep * 0.4 && Math.abs(s.lon - lon) < lonStep * 0.4
+      );
+      if (tooClose) continue;
+
+      const seed = Math.round(lat * 100) + Math.round(lon * 100) + mapHourIdx;
+      const spd = Math.max(0, Math.round(hData.wind * (1 + Math.sin(seed) * 0.15)));
+
+      // Stagger animation delay so arrows don't all move in sync
+      const delay = (Math.abs(seed) % 20) / 10; // 0–2s delay
+
+      const arrowMarker = L.marker([lat, lon], {
+        icon: makeArrowIcon(spd, dirDeg, false),
+        interactive: false,
+        zIndexOffset: -100,
+      }).addTo(leafletMap);
+
+      // Apply stagger delay to the inner div animation
+      const el = arrowMarker.getElement();
+      if (el) {
+        const animated = el.querySelector('div');
+        if (animated) animated.style.animationDelay = `-${delay}s`;
+      }
+
+      windArrowLayer.push(arrowMarker);
+    }
+  }
+
+  // Update time label
+  document.getElementById('mapTimeLabel').textContent =
+    `${day.date.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})} · ${String(hData.hour).padStart(2,'0')}:00`;
+
+  document.getElementById('mapTitle').textContent =
+    `Satellite Map — ${LOCATIONS[currentLocation]?.name || currentLocation}`;
+}
+
+function toggleMapAnimation() {
+  const btn = document.getElementById('mapPlayBtn');
+  if (mapAnimating) {
+    mapAnimating = false;
+    clearInterval(mapAnimInterval);
+    btn.textContent = '⏵ PLAY';
+    btn.style.background = 'rgba(0,229,160,0.15)';
+  } else {
+    mapAnimating = true;
+    btn.textContent = '⏸ PAUSE';
+    btn.style.background = 'rgba(0,229,160,0.25)';
+    mapAnimInterval = setInterval(() => {
+      mapHourIdx = (mapHourIdx + 1) % weekData[selectedDay].hours.length;
+      updateMapMarkers();
+    }, 1400);
+  }
+}
+
+function initWindMap() {
+  syncSpotCoords();
+  mapHourIdx = 3;
+  if (mapAnimating) {
+    clearInterval(mapAnimInterval);
+    mapAnimating = false;
+  }
+
+  const spot = SPOT_COORDS[currentLocation] || SPOT_COORDS['royalparade'] || SPOT_COORDS['eastbourne'];
+  if (!spot) return;
+
+  if (!leafletMap) {
+    initLeafletMap();
+    setupMapMoveListener();
+  } else {
+    leafletMap.setView([spot.lat, spot.lon], Math.max(leafletMap.getZoom(), 12));
+  }
+  updateMapMarkers();
+
+  mapAnimating = true;
+  const btn = document.getElementById('mapPlayBtn');
+  if (btn) { btn.textContent = '⏸ PAUSE'; btn.style.background = 'rgba(0,229,160,0.25)'; }
+  mapAnimInterval = setInterval(() => {
+    if (weekData[selectedDay]) {
+      mapHourIdx = (mapHourIdx + 1) % weekData[selectedDay].hours.length;
+      updateMapMarkers();
+    }
+  }, 1400);
+}
+
+// Refresh arrows when map is moved/zoomed
+function setupMapMoveListener() {
+  if (leafletMap) {
+    leafletMap.on('moveend zoomend', () => updateMapMarkers());
+  }
+}
+
+
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('[WingCast] SW registered:', reg.scope))
+      .catch(err => console.warn('[WingCast] SW failed:', err));
+  });
+}
+
+// Install prompt (Android/Chrome)
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('installBanner').classList.add('visible');
+});
+
+document.getElementById('installBtn').addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if (outcome === 'accepted') {
+    document.getElementById('installBanner').classList.remove('visible');
+  }
+  deferredPrompt = null;
+});
+
+document.getElementById('dismissInstall').addEventListener('click', () => {
+  document.getElementById('installBanner').classList.remove('visible');
+});
+
+window.addEventListener('appinstalled', () => {
+  document.getElementById('installBanner').classList.remove('visible');
+  console.log('[WingCast] App installed');
+});
+
+// Offline/online detection
+function updateOnlineStatus() {
+  document.getElementById('offlineBadge').style.display = navigator.onLine ? 'none' : 'block';
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
+
+// ==================== PROFILE + GEAR ====================
+
+let profile = {};
+try { profile = JSON.parse(_store.get('wc_profile') || '{}'); } catch(e) { profile = {}; }
+if (!profile.weight)   profile.weight   = 95;
+if (!profile.level)    profile.level    = 'advanced';
+if (!profile.quiver)   profile.quiver   = [{size:6.0,name:'6m Wing'},{size:5.5,name:'5.5m Wing'},{size:4.0,name:'4m Wing'}];
+if (!profile.boards)   profile.boards   = [];
+if (!profile.wetsuits) profile.wetsuits = [];
+
+function saveProfile() {
+  const n=document.getElementById('pName'); if(n) profile.name=n.value;
+  const w=document.getElementById('pWeight'); if(w) profile.weight=parseFloat(w.value)||profile.weight;
+  const l=document.getElementById('pLevel'); if(l) profile.level=l.value;
+  const h=document.getElementById('pHomeSpot'); if(h) profile.homeSpot=h.value;
+  _store.set('wc_profile', JSON.stringify(profile));
+  updateProfileHeader(); rebuildWingRecs();
+}
+
+function updateProfileHeader() {
+  const el=document.getElementById('profileName'); if(el) el.textContent=(profile.name||'Wingfoiler').toUpperCase();
+  const el2=document.getElementById('profileTagline'); if(el2) el2.textContent=profile.weight+'kg · '+(profile.level||'advanced')+' · '+getSessions().length+' sessions logged';
+}
+
+function renderProfile() {
+  const pn=document.getElementById('pName'); if(pn&&profile.name) pn.value=profile.name;
+  const pw=document.getElementById('pWeight'); if(pw&&profile.weight) pw.value=profile.weight;
+  const pl=document.getElementById('pLevel'); if(pl&&profile.level) pl.value=profile.level;
+  renderHomeSpotSelect(); renderLocationList(); renderQuiverList(); renderBoardList(); renderWetsuitList();
+  updateProfileHeader(); initWarningToggle();
+  // Avatar
+  const av=document.getElementById('profileAvatarDisplay'); if(av) av.textContent=profile.avatar||'🤙';
+}
+
+// ---- LOCATIONS ----
+const DEFAULT_LOC_KEYS = [];
+
+function getAllLocations() {
+  const all = {};
+  Object.entries(LOCATIONS).forEach(([k,v]) => all[k]=v);
+  (profile.customLocations||[]).forEach(c => { all[c.key]=c; });
+  return all;
+}
+
+function renderLocationSelect() {
+  const sel=document.getElementById('locationSelect'); if(!sel) return;
+  const locs=getAllLocations();
+  const keys=Object.keys(locs);
+  if(!keys.length) { sel.innerHTML='<option value="">— Add a location —</option>'; return; }
+  const cur=currentLocation&&locs[currentLocation]?currentLocation:keys[0];
+  sel.innerHTML=keys.map(k=>'<option value="'+k+'"'+(k===cur?' selected':'')+'>'+locs[k].name+'</option>').join('');
+  if(!locs[currentLocation]) { currentLocation=keys[0]; }
+}
+
+function renderHomeSpotSelect() {
+  const sel=document.getElementById('pHomeSpot'); if(!sel) return;
+  const locs=getAllLocations();
+  sel.innerHTML=Object.entries(locs).map(([k,v])=>
+    '<option value="'+k+'"'+(k===(profile.homeSpot||currentLocation)?' selected':'')+'>'+v.name+'</option>').join('');
+}
+
+function renderLocationList() {
+  const el=document.getElementById('locationList'); if(!el) return;
+  const locs=getAllLocations();
+  if(!Object.keys(locs).length) {
+    el.innerHTML='<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:13px;color:var(--text-muted);text-align:center;padding:14px;">No locations added yet.<br>Tap + ADD LOCATION to get started.</div>';
+    return;
+  }
+  el.innerHTML=Object.entries(locs).map(([k,v])=>'<div class="quiver-item">'+
+    '<div style="font-size:15px;min-width:26px;">📍</div>'+
+    '<div class="quiver-name">'+v.name+(v.lat?'<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:10px;color:var(--text-muted);">'+v.lat.toFixed(3)+', '+v.lon.toFixed(3)+'</div>':'')+'</div>'+
+    '<button class="quiver-del" onclick="deleteLocation(\''+k+'\')">✕</button>'+
+    '</div>').join('');
+}
+
+// ---- ADD LOCATION MODAL ----
+const BEACH_DIRS = [
+  {label:'N',bearing:0},{label:'NE',bearing:45},{label:'E',bearing:90},{label:'SE',bearing:135},
+  {label:'S',bearing:180},{label:'SW',bearing:225},{label:'W',bearing:270},{label:'NW',bearing:315}
+];
+let selectedBeachBearing = null;
+
+// ---- ADD LOCATION VIA MAP PIN ----
+let addLocMap = null;
+let addLocMarker = null;
+
+function openAddLocation() {
+  selectedBeachBearing = 180; // default south
+  const modal = document.getElementById('addLocationModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  const nameEl = document.getElementById('newLocName'); if(nameEl) nameEl.value = '';
+  const latEl = document.getElementById('newLocLat'); if(latEl) latEl.value = '';
+  const lonEl = document.getElementById('newLocLon'); if(lonEl) lonEl.value = '';
+  const btn = document.getElementById('addLocSaveBtn');
+  if(btn) { btn.disabled = true; btn.textContent = 'PIN A LOCATION FIRST'; btn.style.opacity = '0.5'; }
+
+  // Init compass
+  initCompass();
+
+  setTimeout(() => {
+    const mapEl = document.getElementById('addLocMap');
+    if (!mapEl) return;
+
+    const curLoc = getAllLocations()[currentLocation];
+    const centre = curLoc ? [curLoc.lat, curLoc.lon] : [51.0, -1.0];
+
+    if (addLocMap) { addLocMap.remove(); addLocMap = null; addLocMarker = null; }
+
+    addLocMap = L.map('addLocMap', { center: centre, zoom: 10, zoomControl: true });
+
+    // Satellite base layer
+    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '© Esri', maxZoom: 18
+    }).addTo(addLocMap);
+
+    // OpenStreetMap labels overlay — shows place names on top of satellite
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png', {
+      opacity: 0.8, maxZoom: 18, attribution: '© OpenStreetMap contributors © CARTO'
+    }).addTo(addLocMap);
+
+    addLocMap.on('click', function(e) {
+      placePinAt(e.latlng.lat, e.latlng.lng);
+    });
+
+    const instr = document.getElementById('addLocInstruction');
+    if(instr) instr.textContent = 'TAP THE MAP TO DROP A PIN ON YOUR LAUNCH SPOT';
+  }, 150);
+}
+
+function placePinAt(lat, lng) {
+  // Remove existing marker
+  if (addLocMarker) { addLocMap.removeLayer(addLocMarker); addLocMarker = null; }
+
+  // Custom green pin icon
+  const pinIcon = L.divIcon({
+    html: `<div style="width:28px;height:36px;position:relative;">
+      <svg viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 0C6.27 0 0 6.27 0 14c0 10.5 14 22 14 22s14-11.5 14-22C28 6.27 21.73 0 14 0z" fill="#00e5a0" stroke="#040d1a" stroke-width="1.5"/>
+        <circle cx="14" cy="14" r="5" fill="#040d1a"/>
+      </svg>
+    </div>`,
+    className: '',
+    iconSize: [28, 36],
+    iconAnchor: [14, 36],
+  });
+
+  addLocMarker = L.marker([lat, lng], { icon: pinIcon, draggable: true }).addTo(addLocMap);
+
+  // Update coords on drag
+  addLocMarker.on('dragend', function() {
+    const pos = addLocMarker.getLatLng();
+    updatePinCoords(pos.lat, pos.lng);
+  });
+
+  updatePinCoords(lat, lng);
+
+  // Update instruction to step 2
+  const instr = document.getElementById('addLocInstruction');
+  if(instr) instr.textContent = 'STEP 1 DONE ✓ — NOW SET THE BEACH DIRECTION BELOW';
+
+  // Show compass overlay on the map
+  const overlay = document.getElementById('compassOverlay');
+  if(overlay) overlay.style.display = 'block';
+
+  // Init compass if not already done
+  initCompass();
+}
+
+function updatePinCoords(lat, lng) {
+  const latEl = document.getElementById('newLocLat'); if(latEl) latEl.value = lat;
+  const lonEl = document.getElementById('newLocLon'); if(lonEl) lonEl.value = lng;
+  const coords = document.getElementById('addLocCoords');
+  if(coords) { coords.style.display = 'block'; coords.textContent = lat.toFixed(5) + ', ' + lng.toFixed(5); }
+  const btn = document.getElementById('addLocSaveBtn');
+  if(btn) { btn.disabled = false; btn.textContent = 'ADD LOCATION'; btn.style.opacity = '1'; }
+}
+
+// ---- COMPASS DRAG ----
+function initCompass() {
+  const container = document.getElementById('compassContainer');
+  if (!container) return;
+  selectedBeachBearing = 180; // default south
+  updateCompassDisplay(180);
+
+  function getAngle(e) {
+    const rect = container.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const dx = clientX - cx;
+    const dy = clientY - cy;
+    let angle = Math.atan2(dx, -dy) * (180 / Math.PI);
+    if (angle < 0) angle += 360;
+    return Math.round(angle);
+  }
+
+  let dragging = false;
+  container.addEventListener('mousedown', () => dragging = true);
+  container.addEventListener('touchstart', (e) => { dragging = true; e.preventDefault(); }, { passive: false });
+  window.addEventListener('mouseup', () => dragging = false);
+  window.addEventListener('touchend', () => dragging = false);
+  window.addEventListener('mousemove', (e) => { if(dragging) { const a=getAngle(e); selectedBeachBearing=a; updateCompassDisplay(a); } });
+  window.addEventListener('touchmove', (e) => { if(dragging) { const a=getAngle(e); selectedBeachBearing=a; updateCompassDisplay(a); e.preventDefault(); } }, { passive: false });
+  container.addEventListener('click', (e) => { const a=getAngle(e); selectedBeachBearing=a; updateCompassDisplay(a); });
+}
+
+function updateCompassDisplay(bearing) {
+  const arrow = document.getElementById('compassArrow');
+  if (arrow) arrow.style.transform = `translateX(-50%) translateY(-100%) rotate(${bearing}deg)`;
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  const idx = Math.round(bearing / 22.5) % 16;
+  const lbl = document.getElementById('compassBearingLabel');
+  const deg = document.getElementById('compassBearingDeg');
+  if(lbl) lbl.textContent = dirs[idx];
+  if(deg) deg.textContent = bearing + '°';
+}
+
+function selectBeachDir(bearing, label) {
+  selectedBeachBearing = bearing;
+  BEACH_DIRS.forEach(d=>{
+    const btn=document.getElementById('bdir_'+d.label);
+    if(!btn) return;
+    const active=d.label===label;
+    btn.style.background=active?'rgba(0,229,160,0.2)':'rgba(91,196,245,0.05)';
+    btn.style.borderColor=active?'rgba(0,229,160,0.5)':'var(--glass-border)';
+    btn.style.color=active?'var(--wind-green)':'var(--text-dim)';
+  });
+  const bd=document.getElementById('newLocBearingDisplay');
+  if(bd) { bd.style.display='block'; bd.textContent='Beach faces '+label+' ('+bearing+'°) — offshore directions will be calculated automatically'; }
+}
+
+function saveNewLocation() {
+  const name = document.getElementById('newLocName')?.value?.trim();
+  const lat = parseFloat(document.getElementById('newLocLat')?.value);
+  const lon = parseFloat(document.getElementById('newLocLon')?.value);
+  if(!name) { alert('Please enter a location name'); return; }
+  if(isNaN(lat) || isNaN(lon)) { alert('Please tap the map to pin your location first'); return; }
+
+  const bearing = selectedBeachBearing != null ? selectedBeachBearing : 180;
+  const key = name.toLowerCase().replace(/[^a-z0-9]/g,'_').substring(0,20) + '_' + Date.now().toString().slice(-4);
+
+  const offDirs=[], crossDirs=[], onDirs=[];
+  Object.entries(DIR_DEG).forEach(([dir,deg])=>{
+    let diff=((deg-bearing)+360)%360; if(diff>180) diff=360-diff;
+    if(diff>=120) offDirs.push(dir);
+    else if(diff>=60) crossDirs.push(dir);
+    else onDirs.push(dir);
+  });
+  const allWindDirs=[...crossDirs,...onDirs];
+  const newLoc={key,name,lat,lon,waterTemp:12,sunrise:'06:30',sunset:'19:00',
+    tideRange:[0.5,6.0],beachBearing:bearing,
+    crossDirs,onDirs,offDirs,allWindDirs:allWindDirs.length?allWindDirs:['SW','S','SE'],isCustom:true};
+  LOCATIONS[key]=newLoc;
+  SPOT_COORDS[key]={lat,lon,label:name};
+  profile.customLocations=profile.customLocations||[];
+  profile.customLocations.push(newLoc);
+  _store.set('wc_profile', JSON.stringify(profile));
+  closeModal('addLocationModal');
+  renderLocationList(); renderLocationSelect(); renderHomeSpotSelect();
+  updateOffshoreInfoBar();
+}
+
+function deleteLocation(key) {
+  if(!confirm('Remove this location?')) return;
+  profile.customLocations=(profile.customLocations||[]).filter(c=>c.key!==key);
+  delete LOCATIONS[key];
+  delete SPOT_COORDS[key];
+  _store.set('wc_profile', JSON.stringify(profile));
+  const locs=getAllLocations(); const keys=Object.keys(locs);
+  if(currentLocation===key) {
+    currentLocation=keys.length?keys[0]:'';
+    const sel=document.getElementById('locationSelect'); if(sel&&currentLocation) sel.value=currentLocation;
+    if(currentLocation) init();
+  }
+  renderLocationList(); renderLocationSelect(); renderHomeSpotSelect();
+}
+
+// ---- QUIVER MODAL ----
+function openAddWing() {
+  document.getElementById('addWingModal').style.display='block';
+  document.getElementById('newWingSize').value='';
+  document.getElementById('newWingName').value='';
+}
+
+function saveNewWing() {
+  const size=parseFloat(document.getElementById('newWingSize')?.value);
+  const name=document.getElementById('newWingName')?.value||size+'m Wing';
+  if(!size||isNaN(size)) { alert('Please enter a valid wing size'); return; }
+  profile.quiver=profile.quiver||[];
+  profile.quiver.push({size,name});
+  _store.set('wc_profile', JSON.stringify(profile));
+  closeModal('addWingModal');
+  renderQuiverList(); rebuildWingRecs();
+}
+
+function addWing() { openAddWing(); } // alias
+
+function deleteWing(idx) {
+  const sorted=[...(profile.quiver||[])].sort((a,b)=>b.size-a.size); const rm=sorted[idx];
+  profile.quiver=profile.quiver.filter(w=>!(w.size===rm.size&&w.name===rm.name));
+  _store.set('wc_profile', JSON.stringify(profile)); renderQuiverList();
+}
+
+// ---- BOARDS MODAL ----
+function openAddBoard() {
+  document.getElementById('addBoardModal').style.display='block';
+  document.getElementById('newBoardName').value='';
+  document.getElementById('newBoardVolume').value='';
+}
+
+function saveNewBoard() {
+  const name=document.getElementById('newBoardName')?.value?.trim();
+  const vol=parseFloat(document.getElementById('newBoardVolume')?.value)||null;
+  if(!name) { alert('Please enter a board name'); return; }
+  profile.boards=profile.boards||[];
+  profile.boards.push({name,volume:vol});
+  _store.set('wc_profile', JSON.stringify(profile));
+  closeModal('addBoardModal'); renderBoardList();
+}
+
+function addBoard() { openAddBoard(); } // alias
+
+function deleteBoard(idx) { profile.boards.splice(idx,1); _store.set('wc_profile', JSON.stringify(profile)); renderBoardList(); }
+
+// ---- WETSUITS MODAL ----
+// O'Neill thickness guide (minTemp = min water temp in °C)
+const WETSUIT_TEMPS = {
+  'UV/Lycra': 26, '1mm': 21, '2mm': 18, '3/2mm': 12,
+  '4/3mm': 8, '5/4mm': 4, '6/5mm': 4, '7mm+': 0
+};
+
+function autoFillWetsuitTemp() {
+  const sel=document.getElementById('newWetsuitThickness');
+  const inp=document.getElementById('newWetsuitTemp');
+  if(!sel||!inp) return;
+  const thickness=sel.value;
+  const temp=WETSUIT_TEMPS[thickness];
+  if(temp!=null) inp.value=temp;
+}
+
+function openAddWetsuit() {
+  document.getElementById('addWetsuitModal').style.display='block';
+  document.getElementById('newWetsuitThickness').value='';
+  document.getElementById('newWetsuitName').value='';
+  document.getElementById('newWetsuitTemp').value='';
+}
+
+function saveNewWetsuit() {
+  const thickness=document.getElementById('newWetsuitThickness')?.value;
+  const name=document.getElementById('newWetsuitName')?.value||thickness;
+  const minTemp=parseFloat(document.getElementById('newWetsuitTemp')?.value);
+  if(!thickness) { alert('Please select a wetsuit thickness'); return; }
+  if(isNaN(minTemp)) { alert('Min temp could not be determined — please check'); return; }
+  profile.wetsuits=profile.wetsuits||[];
+  profile.wetsuits.push({thickness,name,minTemp});
+  _store.set('wc_profile', JSON.stringify(profile));
+  closeModal('addWetsuitModal'); renderWetsuitList();
+}
+
+function addWetsuit() { openAddWetsuit(); } // alias
+
+function deleteWetsuit(idx) { profile.wetsuits.splice(idx,1); _store.set('wc_profile', JSON.stringify(profile)); renderWetsuitList(); }
+
+// ---- MODAL HELPERS ----
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if(el) el.style.display = 'none';
+  // Clean up add location map if closing that modal
+  if(id === 'addLocationModal' && addLocMap) {
+    addLocMap.remove();
+    addLocMap = null;
+    addLocMarker = null;
+  }
+}
+
+// ---- SETTINGS MODAL ----
+function openSettings() {
+  document.getElementById('settingsModal').style.display='block';
+  updateUnitPrefBtns(); applyWarningState(); renderNotifPrefs();
+  const on=profile.showAISummary!==false;
+  const th=document.getElementById('aiSummaryThumb'); if(th) th.style.left=on?'22px':'3px';
+  const tg=document.getElementById('aiSummaryToggle'); if(tg) tg.style.background=on?'rgba(0,229,160,0.2)':'rgba(255,59,92,0.15)';
+  const lb=document.getElementById('aiSummaryToggleLabel'); if(lb) lb.textContent=on?'ON — shown on forecast':'OFF — hidden';
+}
+function closeSettings() { closeModal('settingsModal'); }
+
+// ---- AVATAR ----
+const AVATARS = ['🤙','🏄','🌊','🤿','🏖️','🦈','🐬','⛵','🌬️','💨','🎯','🏆','🔥','⚡','🌟','🤸','🧘','🏋️','🚀','🎮'];
+
+function openAvatarPicker() {
+  const modal=document.getElementById('avatarModal');
+  const grid=document.getElementById('avatarGrid');
+  if(!modal||!grid) return;
+  const current=profile.avatar||'🤙';
+  grid.innerHTML=AVATARS.map(a=>`<button onclick="selectAvatar('${a}')" style="font-size:26px;padding:8px;border-radius:10px;background:${a===current?'rgba(0,229,160,0.2)':'rgba(91,196,245,0.05)'};border:1px solid ${a===current?'rgba(0,229,160,0.5)':'var(--glass-border)'};cursor:pointer;">${a}</button>`).join('');
+  modal.style.display='block';
+}
+
+function selectAvatar(avatar) {
+  profile.avatar=avatar;
+  _store.set('wc_profile', JSON.stringify(profile));
+  const display=document.getElementById('profileAvatarDisplay');
+  if(display) display.textContent=avatar;
+  closeModal('avatarModal');
+}
+
+function closeAvatarPicker() { closeModal('avatarModal'); }
+
+// ---- DYNAMIC OFFSHORE INFO BAR ----
+function updateOffshoreInfoBar() {
+  const el=document.getElementById('offshoreInfoText'); if(!el) return;
+  const loc=getAllLocations()[currentLocation];
+  if(!loc) return;
+  if(loc.beachBearing===null) { el.innerHTML='Inland location — no offshore risk. All winds are safe.'; return; }
+  const offDirs=(loc.offDirs||[]);
+  const crossDirs=(loc.crossDirs||[]);
+  if(!offDirs.length) { el.innerHTML='No offshore directions identified for this location.'; return; }
+  el.innerHTML=`<strong>${offDirs.join(', ')} = OFFSHORE = DANGEROUS</strong> (blown out to sea at ${loc.name}). Best sessions: ${crossDirs.slice(0,4).join('/')} cross-shore 12–25 kts. Always check conditions before launching.`;
+}
+
+// ---- QUIVER ----
+function rebuildWingRecs() {
+  const wings=(profile.quiver||[]).sort((a,b)=>b.size-a.size);
+  if(!wings.length) return;
+  const wf=(profile.weight||95)/80;
+  window._wingRecs=wings.map((w,i)=>({size:w.size,name:w.name,minKts:i===0?0:Math.round((6+i*6)*wf),maxKts:i<wings.length-1?Math.round((6+(i+1)*6)*wf):999}));
+}
+
+function recommendWing(kts) {
+  if(kts<8) return null;
+  if(!window._wingRecs) rebuildWingRecs();
+  const recs=window._wingRecs||[]; const cols=['#7ab3d4','#00e5a0','#f7c948','#ff8c42','#ff3b5c'];
+  for(let i=0;i<recs.length;i++){const r=recs[i];if(kts>=r.minKts&&kts<r.maxKts)return{size:r.name.replace(' Wing',''),color:cols[Math.min(i,cols.length-1)]};}
+  const s=recs[recs.length-1];return s?{size:s.name.replace(' Wing','')+'⚠',color:'#ff3b5c'}:null;
+}
+
+function renderQuiverList() {
+  const el=document.getElementById('quiverList'); if(!el) return;
+  const wings=(profile.quiver||[]).sort((a,b)=>b.size-a.size);
+  el.innerHTML=wings.length?wings.map((w,i)=>'<div class="quiver-item"><div class="quiver-size">'+w.size+'m</div><div class="quiver-name">'+w.name+'</div><button class="quiver-del" onclick="deleteWing('+i+')">✕</button></div>').join(''):
+    '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:13px;color:var(--text-muted);text-align:center;padding:14px;">No wings added yet</div>';
+  rebuildWingRecs();
+}
+
+// ---- BOARDS ----
+function renderBoardList() {
+  const el=document.getElementById('boardList'); if(!el) return;
+  el.innerHTML=(profile.boards||[]).length?(profile.boards||[]).map((b,i)=>'<div class="quiver-item"><div style="font-size:17px;min-width:30px;">🏄</div><div class="quiver-name">'+b.name+(b.volume?' · '+b.volume+'L':'')+'</div><button class="quiver-del" onclick="deleteBoard('+i+')">✕</button></div>').join(''):
+    '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:13px;color:var(--text-muted);text-align:center;padding:14px;">No boards added yet</div>';
+}
+
+// ---- WETSUITS ----
+function recommendWetsuit(t) {
+  const suits=profile.wetsuits||[];
+  if(suits.length){const m=[...suits].sort((a,b)=>b.minTemp-a.minTemp).find(s=>t>=s.minTemp);if(m)return{suit:m.thickness,color:'#00e5a0',tip:m.name};}
+  if(t>=26) return{suit:'UV/Lycra',color:'#f7c948',tip:'warm water'};
+  if(t>=21) return{suit:'1mm',color:'#f7c948',tip:'summer'};
+  if(t>=18) return{suit:'2mm',color:'#00e5a0',tip:'shorty'};
+  if(t>=12) return{suit:'3/2mm',color:'#00e5a0',tip:'+ optional gloves'};
+  if(t>=8)  return{suit:'4/3mm',color:'#5bc4f5',tip:'+ gloves & boots'};
+  if(t>=4)  return{suit:'5/4mm',color:'#7ab3d4',tip:'+ hood, 5mm boots'};
+  return{suit:'6/5mm+',color:'#ff8c42',tip:'full hood & gloves'};
+}
+
+function renderWetsuitList() {
+  const el=document.getElementById('wetsuitList'); if(!el) return;
+  el.innerHTML=(profile.wetsuits||[]).length?(profile.wetsuits||[]).map((s,i)=>'<div class="quiver-item"><div class="quiver-size" style="color:#7ab3d4;font-size:13px;min-width:50px;">'+s.thickness+'</div><div style="flex:1;"><div class="quiver-name">'+s.name+'</div><div style="font-family:\'Barlow Condensed\',sans-serif;font-size:10px;color:var(--text-muted);">Above '+s.minTemp+'°C</div></div><button class="quiver-del" onclick="deleteWetsuit('+i+')">✕</button></div>').join(''):
+    '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:13px;color:var(--text-muted);text-align:center;padding:14px;">No wetsuits added — generic O\'Neill guide used</div>';
+}
+
+// ---- UNIT PREFS ----
+function setUnitPref(u) {
+  windUnit=u; document.getElementById('unitToggleBtn').textContent=unitLabel(u);
+  updateUnitPrefBtns(); renderBanner(); renderStats(); renderForecastTable();
+  profile.unit=u; _store.set('wc_profile', JSON.stringify(profile));
+}
+
+function updateUnitPrefBtns() {
+  ['kts','ms','mph','bft'].forEach(u=>{const b=document.getElementById('unitPref_'+u);if(!b)return;
+    b.style.background=windUnit===u?'rgba(0,229,160,0.15)':'var(--glass)';
+    b.style.borderColor=windUnit===u?'rgba(0,229,160,0.4)':'var(--glass-border)';
+    b.style.color=windUnit===u?'var(--wind-green)':'var(--text-dim)';});
+}
+
+// ---- WARNINGS ----
+function toggleWarnings() {
+  profile.showWarnings=profile.showWarnings===false?true:false;
+  _store.set('wc_profile', JSON.stringify(profile)); applyWarningState();
+}
+
+function applyWarningState() {
+  const on=profile.showWarnings!==false;
+  const bar=document.getElementById('offshoreInfoBar'); if(bar) bar.style.display=on?'':'none';
+  const thumb=document.getElementById('warningToggleThumb'); const tog=document.getElementById('warningToggle'); const lbl=document.getElementById('warningToggleLabel');
+  if(thumb) thumb.style.left=on?'22px':'3px';
+  if(tog){tog.style.background=on?'rgba(0,229,160,0.2)':'rgba(255,59,92,0.15)';tog.style.borderColor=on?'rgba(0,229,160,0.4)':'rgba(255,59,92,0.3)';if(thumb)thumb.style.background=on?'var(--wind-green)':'var(--wind-red)';}
+  if(lbl) lbl.textContent=on?'ON — visible':'OFF — hidden';
+}
+function initWarningToggle() { applyWarningState(); }
+
+// ==================== TAB NAVIGATION ====================
+function switchTab(tab) {
+  ['forecast','sessions','profile'].forEach(t=>{
+    const b=document.getElementById('nav'+t.charAt(0).toUpperCase()+t.slice(1)); if(b) b.classList.toggle('active',t===tab);
+  });
+  const sf=tab==='forecast';
+  document.querySelector('main').style.display=sf?'':'none';
+  const cb=document.getElementById('conditionsBanner'); if(cb) cb.style.display=sf?'':'none';
+  const ib=document.getElementById('offshoreInfoBar'); if(ib) ib.style.display=(sf&&profile.showWarnings!==false)?'':'none';
+  const db=document.getElementById('dataSrcBadge'); if(db) db.style.display=sf?'':'none';
+  const ai=document.getElementById('aiSummaryBar'); if(ai) ai.style.display=(sf&&profile.showAISummary!==false)?'':'none';
+  const sw=document.getElementById('spotWatchers'); if(sw) sw.style.display=sf?'':'none';
+  document.getElementById('sessionsPanel').style.display=tab==='sessions'?'':'none';
+  document.getElementById('profilePanel').style.display=tab==='profile'?'':'none';
+  if(tab==='sessions') renderSessions();
+  if(tab==='profile') renderProfile();
+}
+
+// ==================== SESSIONS ====================
+function getSessions() { return JSON.parse(_store.get('wc_sessions')||'[]'); }
+function saveSessions(arr) { _store.set('wc_sessions', JSON.stringify(arr)); }
+
+function fmtDur(hrs) { const h=Math.floor(hrs),m=Math.round((hrs-h)*60); if(h===0) return m+'m'; if(m===0) return h+'h'; return h+'h '+m+'m'; }
+
+let sessionRating=0;
+function setRating(n) {
+  sessionRating=n;
+  document.querySelectorAll('#sessionRating button').forEach((btn,i)=>{ btn.style.background=i<n?'rgba(247,201,72,0.3)':'rgba(247,201,72,0.08)'; btn.style.borderColor=i<n?'rgba(247,201,72,0.6)':'rgba(247,201,72,0.2)'; });
+}
+
+function openLogSession() {
+  document.getElementById('sDate').value=new Date().toISOString().split('T')[0];
+  const sLocSel=document.getElementById('sLocation');
+  sLocSel.innerHTML=Object.entries(getAllLocations()).map(([k,v])=>'<option value="'+k+'"'+(k===currentLocation?' selected':'')+'>'+v.name+'</option>').join('');
+  if(weekData.length) { const h=weekData[0].hours[Math.min(Math.floor(new Date().getHours()/3),weekData[0].hours.length-1)]; if(h){document.getElementById('sWind').value=h.wind;document.getElementById('sSwell').value=h.swell;} }
+  document.getElementById('sWing').innerHTML='<option value="">— select wing —</option>'+(profile.quiver||[]).sort((a,b)=>b.size-a.size).map(w=>'<option value="'+w.size+'">'+w.name+'</option>').join('');
+  document.getElementById('sBoard').innerHTML='<option value="">— select board —</option>'+(profile.boards||[]).map(b=>'<option value="'+b.name+'">'+b.name+'</option>').join('');
+  const wt=LOCATIONS[currentLocation]?.waterTemp||12;
+  const wm=profile.wetsuits?.length?[...(profile.wetsuits||[])].sort((a,b)=>b.minTemp-a.minTemp).find(w=>wt>=w.minTemp):null;
+  document.getElementById('sWetsuit').innerHTML='<option value="">— select wetsuit —</option>'+(profile.wetsuits||[]).map(w=>'<option value="'+w.thickness+'"'+(wm&&wm.thickness===w.thickness?' selected':'')+'>'+w.name+' ('+w.thickness+')</option>').join('')+'<option value="boardshorts">Boardshorts / None</option>';
+  document.getElementById('sDurHrs').value='2'; document.getElementById('sDurMins').value='0';
+  document.getElementById('sStart').value=''; document.getElementById('sNotes').value='';
+  sessionRating=0; document.querySelectorAll('#sessionRating button').forEach(btn=>{btn.style.background='rgba(247,201,72,0.08)';btn.style.borderColor='rgba(247,201,72,0.2)';});
+  document.getElementById('logSessionModal').style.display='block';
+}
+
+function closeLogSession() { document.getElementById('logSessionModal').style.display='none'; }
+
+function saveSession() {
+  const date=document.getElementById('sDate').value; const loc=document.getElementById('sLocation').value;
+  if(!date||!loc){alert('Please set date and location');return;}
+  const hrs=parseInt(document.getElementById('sDurHrs').value)||0; const mins=parseInt(document.getElementById('sDurMins').value)||0;
+  getSessions(); const sessions=getSessions();
+  sessions.unshift({id:Date.now(),date,location:loc,start:document.getElementById('sStart').value,duration:+(hrs+mins/60).toFixed(2),
+    wing:document.getElementById('sWing').value,board:document.getElementById('sBoard').value,wetsuit:document.getElementById('sWetsuit').value,
+    wind:parseFloat(document.getElementById('sWind').value)||0,swell:parseFloat(document.getElementById('sSwell').value)||0,
+    rating:sessionRating,notes:document.getElementById('sNotes').value});
+  saveSessions(sessions); closeLogSession(); switchTab('sessions');
+}
+
+function deleteSession(id) { if(!confirm('Delete this session?')) return; saveSessions(getSessions().filter(s=>s.id!==id)); renderSessions(); }
+
+function exportSessions() {
+  const sessions=getSessions(); if(!sessions.length){alert('No sessions to export');return;}
+  const all=getAllLocations();
+  const csv=[['Date','Location','Start','Duration','Wing','Board','Wetsuit','Wind(kts)','Swell(m)','Rating','Notes'],
+    ...sessions.map(s=>[s.date,(all[s.location]?.name||s.location),s.start||'',s.duration||'',s.wing||'',s.board||'',s.wetsuit||'',s.wind||'',s.swell||'',s.rating||'',(s.notes||'').replace(/,/g,' ')])
+  ].map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='wingcast-sessions.csv'; a.click();
+}
+
+function renderSessions() {
+  const sessions=getSessions(); const all=getAllLocations();
+  const totalHrs=sessions.reduce((a,s)=>a+(s.duration||0),0);
+  const avgWind=sessions.length?Math.round(sessions.reduce((a,s)=>a+s.wind,0)/sessions.length):0;
+  const thisMonth=sessions.filter(s=>s.date?.startsWith(new Date().toISOString().slice(0,7))).length;
+  document.getElementById('sessionStats').innerHTML=
+    '<div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:10px;padding:12px;text-align:center;"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:26px;color:var(--wind-green);">'+sessions.length+'</div><div style="font-family:\'Barlow Condensed\',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:1px;">TOTAL SESSIONS</div></div>'+
+    '<div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:10px;padding:12px;text-align:center;"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:26px;color:var(--sky);">'+totalHrs.toFixed(1)+'</div><div style="font-family:\'Barlow Condensed\',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:1px;">HOURS ON WATER</div></div>'+
+    '<div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:10px;padding:12px;text-align:center;"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:26px;color:var(--wind-yellow);">'+avgWind+'</div><div style="font-family:\'Barlow Condensed\',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:1px;">AVG WIND KTS</div></div>';
+
+  const now=new Date(); const wkStart=new Date(now); wkStart.setDate(now.getDate()-now.getDay());
+  const thisWeek=sessions.filter(s=>new Date(s.date)>=wkStart).length;
+  const bestWind=sessions.length?Math.max(...sessions.map(s=>s.wind||0)):0;
+  const bestDur=sessions.length?Math.max(...sessions.map(s=>s.duration||0)):0;
+  const se=document.getElementById('sessionStreak');
+  if(se) se.innerHTML=sessions.length?
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'+
+    '<div style="background:rgba(0,229,160,0.07);border:1px solid rgba(0,229,160,0.18);border-radius:10px;padding:11px;text-align:center;"><div style="font-size:18px;">🔥</div><div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--wind-green);">'+thisWeek+'</div><div style="font-family:\'Barlow Condensed\',sans-serif;font-size:10px;color:var(--text-muted);">THIS WEEK</div></div>'+
+    '<div style="background:rgba(91,196,245,0.07);border:1px solid rgba(91,196,245,0.18);border-radius:10px;padding:11px;text-align:center;"><div style="font-size:18px;">📅</div><div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--sky);">'+thisMonth+'</div><div style="font-family:\'Barlow Condensed\',sans-serif;font-size:10px;color:var(--text-muted);">THIS MONTH</div></div></div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'+
+    '<div style="background:rgba(247,201,72,0.07);border:1px solid rgba(247,201,72,0.18);border-radius:10px;padding:11px;text-align:center;"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--wind-yellow);">'+bestWind+'<span style="font-size:11px;">kts</span></div><div style="font-family:\'Barlow Condensed\',sans-serif;font-size:10px;color:var(--text-muted);">BEST WIND</div></div>'+
+    '<div style="background:rgba(255,140,66,0.07);border:1px solid rgba(255,140,66,0.18);border-radius:10px;padding:11px;text-align:center;"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--wind-orange);">'+fmtDur(bestDur)+'</div><div style="font-family:\'Barlow Condensed\',sans-serif;font-size:10px;color:var(--text-muted);">LONGEST SESSION</div></div></div>':'';
+
+  const ce=document.getElementById('weekCalendar');
+  if(ce&&weekData.length) ce.innerHTML=weekData.map((day,i)=>{
+    const cond=getBestCondition(day); const cols={epic:'#00e5a0',good:'#5bc4f5',marginal:'#ff8c42',poor:'#3a6a8a'}; const col=cols[cond.cls]||'#3a6a8a';
+    const wh=day.hours.filter(h=>{const c=getWingCondition(h.wind,h.gust,h.swell,h.dir,currentLocation);return c.cls==='epic'||c.cls==='good';}).length*3;
+    return '<div onclick="switchTab(\'forecast\');selectDay('+i+')" style="text-align:center;cursor:pointer;border-radius:8px;padding:7px 2px;background:'+col+'18;border:1px solid '+col+'35;">'+
+      '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:9px;color:var(--text-muted);">'+dayName(day.date,i)+'</div>'+
+      '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:17px;color:'+col+';">'+day.date.getDate()+'</div>'+
+      '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:9px;color:'+col+';">'+(wh>0?wh+'h':'—')+'</div></div>';
+  }).join('');
+
+  const cht=document.getElementById('sessionChart'); const lbl=document.getElementById('sessionChartLabels');
+  if(cht) {
+    const months=[]; for(let i=5;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);months.push({key:d.toISOString().slice(0,7),label:d.toLocaleDateString('en-GB',{month:'short'})});}
+    const counts=months.map(m=>sessions.filter(s=>s.date?.startsWith(m.key)).length); const maxC=Math.max(...counts,1);
+    cht.innerHTML=counts.map((c,i)=>{const pct=Math.round((c/maxC)*100);const col=c===0?'var(--text-muted)':c===maxC?'var(--wind-green)':'var(--sky)';
+      return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;"><div style="font-family:\'Barlow Condensed\',sans-serif;font-size:10px;color:'+col+';">'+(c||'')+'</div><div style="width:100%;background:'+col+';border-radius:3px 3px 0 0;height:'+Math.max(3,pct*0.76)+'px;"></div></div>';
+    }).join('');
+    if(lbl) lbl.innerHTML=months.map(m=>'<div style="flex:1;text-align:center;font-family:\'Barlow Condensed\',sans-serif;font-size:9px;color:var(--text-muted);">'+m.label+'</div>').join('');
+  }
+
+  checkWindAlertAdvanced();
+
+  const listEl=document.getElementById('sessionList');
+  if(!sessions.length){listEl.innerHTML='<div style="text-align:center;padding:36px 20px;font-family:\'Barlow Condensed\',sans-serif;font-size:14px;color:var(--text-muted);letter-spacing:2px;">NO SESSIONS YET<br><br><span style="font-size:12px;">Tap + LOG SESSION above</span></div>';return;}
+  listEl.innerHTML=sessions.map(s=>'<div class="session-card"><div class="session-card-header"><div><div class="session-date">'+s.date+(s.start?' · '+s.start:'')+'</div><div class="session-location">'+(all[s.location]?.name||s.location)+'</div></div>'+
+    '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">'+(s.rating?'<div style="font-size:11px;">'+'⭐'.repeat(s.rating)+'</div>':'')+'<button onclick="deleteSession('+s.id+')" style="background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;">✕</button></div></div>'+
+    '<div class="session-stats">'+
+    (s.duration?'<div class="session-stat"><div class="session-stat-val">'+fmtDur(s.duration)+'</div><div class="session-stat-lbl">DURATION</div></div>':'')+
+    (s.wind?'<div class="session-stat"><div class="session-stat-val" style="color:'+windColor(s.wind)+';">'+s.wind+'kts</div><div class="session-stat-lbl">WIND</div></div>':'')+
+    (s.swell?'<div class="session-stat"><div class="session-stat-val" style="color:var(--sky);">'+s.swell+'m</div><div class="session-stat-lbl">SWELL</div></div>':'')+
+    (s.wing?'<div class="session-stat"><div class="session-stat-val" style="color:var(--wind-green);">'+s.wing+'m</div><div class="session-stat-lbl">WING</div></div>':'')+
+    (s.wetsuit?'<div class="session-stat"><div class="session-stat-val" style="color:#7ab3d4;font-size:13px;">'+s.wetsuit+'</div><div class="session-stat-lbl">WETSUIT</div></div>':'')+
+    '</div>'+(s.notes?'<div style="margin-top:8px;font-family:\'Barlow Condensed\',sans-serif;font-size:12px;color:var(--text-dim);border-top:1px solid var(--glass-border);padding-top:8px;">'+s.notes+'</div>':'')+
+    '</div>').join('');
+}
+
+// ==================== AI DAILY SUMMARY ====================
+async function loadAISummary() {
+  if (!weekData.length) return;
+  const bar = document.getElementById('aiSummaryBar');
+  const txt = document.getElementById('aiSummaryText');
+  if (!bar || !txt) return;
+  if (profile.showAISummary === false) { bar.style.display = 'none'; return; }
+  bar.style.display = 'block';
+  txt.textContent = 'Analysing conditions...';
+
+  const day = weekData[selectedDay];
+  const loc = getAllLocations()[currentLocation];
+  const hours = day.hours;
+  const dateStr = day.date.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'});
+
+  // Score each hour
+  const scored = hours.map(h => {
+    const c = getWingCondition(h.wind, h.gust, h.swell, h.dir, currentLocation);
+    return { h, c, score: c.cls==='epic'?4 : c.cls==='good'?3 : c.cls==='marginal'?1 : 0 };
+  });
+
+  const epicHours  = scored.filter(s => s.score === 4);
+  const goodHours  = scored.filter(s => s.score >= 3);
+  const offshoreHrs = scored.filter(s => s.c.danger);
+  const bestScore  = Math.max(...scored.map(s => s.score));
+
+  // Wing recommendation for best window
+  const bestH = scored.reduce((a,b) => b.score > a.score ? b : a, scored[0]);
+  const wingRec = recommendWing(bestH.h.wind);
+
+  let summary = '';
+  const locName = loc?.name || currentLocation;
+
+  // Check current/imminent conditions first (first hour of day data)
+  const currentSlot = scored[0];
+  const isCurrentlyOffshore = currentSlot?.c?.danger;
+
+  if (isCurrentlyOffshore && bestScore >= 3) {
+    const first = (epicHours[0] || goodHours[0]);
+    const winStr = wingRec ? ` ${wingRec.size} recommended.` : '';
+    summary = `⚠️ Currently OFFSHORE at ${locName} — do not launch yet. Good window expected around ${String(first.h.hour).padStart(2,'0')}:00 (${first.h.wind}kts ${first.h.dir}).${winStr}`;
+  } else if (isCurrentlyOffshore) {
+    summary = `⚠️ OFFSHORE wind right now at ${locName} — DO NOT LAUNCH. ${offshoreHrs.length * 3}hrs of offshore conditions today.`;
+  } else if (offshoreHrs.length >= 6 && bestScore <= 1) {
+    summary = `⚠️ Offshore wind most of the day at ${locName} — DO NOT LAUNCH. Check back tomorrow.`;
+  } else if (bestScore === 4 && epicHours.length >= 2) {
+    const first = epicHours[0];
+    const last  = epicHours[epicHours.length-1];
+    const winStr = wingRec ? ` Take your ${wingRec.size}.` : '';
+    summary = `🟢 EPIC conditions ${String(first.h.hour).padStart(2,'0')}:00–${String(last.h.hour+3).padStart(2,'0')}:00 at ${locName} — ${first.h.wind}kts ${first.h.dir}, ${first.h.swell}m swell (${first.h.wavePeriod||'?'}s period).${winStr}`;
+  } else if (bestScore === 3 && goodHours.length >= 1) {
+    const first = goodHours[0];
+    const winStr = wingRec ? ` ${wingRec.size} recommended.` : '';
+    summary = `🔵 Good session possible around ${String(first.h.hour).padStart(2,'0')}:00 — ${first.h.wind}kts ${first.h.dir}, ${first.h.swell}m swell.${winStr} ${goodHours.length * 3}hrs of good+ conditions today.`;
+  } else if (bestScore === 1) {
+    const margHours = scored.filter(s => s.score === 1);
+    const best = margHours.reduce((a,b) => b.h.wind > a.h.wind ? b : a, margHours[0]);
+    summary = `🟡 Marginal day at ${locName}. Best window around ${String(best.h.hour).padStart(2,'0')}:00 with ${best.h.wind}kts ${best.h.dir} — doable but not ideal.`;
+  } else {
+    summary = `⚪ Poor conditions today at ${locName}. Wind too light or offshore — better to wait.`;
+  }
+
+  if (offshoreHrs.length > 0 && !isCurrentlyOffshore && bestScore >= 3) {
+    summary += ` ⚠️ Offshore windows present — check the table carefully.`;
+  }
+
+  txt.textContent = summary;
+  bar.style.display = profile.showAISummary !== false ? 'block' : 'none';
+}
+
+function toggleAISummary() {
+  profile.showAISummary = profile.showAISummary === false ? true : false;
+  _store.set('wc_profile', JSON.stringify(profile));
+  const on = profile.showAISummary !== false;
+  const thumb = document.getElementById('aiSummaryThumb');
+  const tog = document.getElementById('aiSummaryToggle');
+  const lbl = document.getElementById('aiSummaryToggleLabel');
+  if(thumb) thumb.style.left = on ? '22px' : '3px';
+  if(tog) { tog.style.background = on ? 'rgba(0,229,160,0.2)' : 'rgba(255,59,92,0.15)'; if(thumb) thumb.style.background = on ? 'var(--wind-green)' : 'var(--wind-red)'; }
+  if(lbl) lbl.textContent = on ? 'ON — shown on forecast' : 'OFF — hidden';
+  const bar = document.getElementById('aiSummaryBar');
+  if(bar) bar.style.display = on ? '' : 'none';
+}
+
+// ==================== SPOT WATCHERS ====================
+function updateSpotWatchers() {
+  const el = document.getElementById('spotWatchers');
+  const txt = document.getElementById('watchersText');
+  if (!el || !txt) return;
+  const key = 'wc_watchers_' + currentLocation;
+  const now = Date.now();
+  let watchers = JSON.parse(_store.get(key) || '[]');
+  watchers = watchers.filter(t => now - t < 30 * 60 * 1000);
+  watchers.push(now);
+  _store.set(key, JSON.stringify(watchers));
+  const count = watchers.length;
+  const loc = getAllLocations()[currentLocation];
+  txt.textContent = count === 1
+    ? `1 wingfoiler watching ${loc?.name||currentLocation} today`
+    : `${count} wingfoilers watching ${loc?.name||currentLocation} today`;
+  el.style.display = 'flex';
+}
+
+// ==================== NOTIFICATIONS / ALERT PREFS ====================
+const ALL_DIRS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+
+function renderNotifPrefs() {
+  // Location select
+  const locSel = document.getElementById('alertLocation');
+  if (locSel) {
+    locSel.innerHTML = Object.entries(getAllLocations()).map(([k,v]) =>
+      `<option value="${k}" ${k===(profile.notif?.location||profile.homeSpot||currentLocation)?'selected':''}>${v.name}</option>`
+    ).join('');
+  }
+  // Wind range
+  const mn = document.getElementById('alertMinWind'); if(mn && profile.notif?.minWind) mn.value = profile.notif.minWind;
+  const mx = document.getElementById('alertMaxWind'); if(mx && profile.notif?.maxWind) mx.value = profile.notif.maxWind;
+  // Lookahead
+  const la = document.getElementById('alertLookahead'); if(la && profile.notif?.lookahead != null) la.value = profile.notif.lookahead;
+  // Time window
+  const tf = document.getElementById('alertTimeFrom'); if(tf && profile.notif?.timeFrom) tf.value = profile.notif.timeFrom;
+  const tt = document.getElementById('alertTimeTo'); if(tt && profile.notif?.timeTo) tt.value = profile.notif.timeTo;
+
+  // Direction picker
+  const dp = document.getElementById('alertDirPicker');
+  if (dp) {
+    const selectedDirs = profile.notif?.dirs || ['SW','SSW','SE','ESE','S','W','WSW'];
+    dp.innerHTML = ALL_DIRS.map(d => {
+      const isOff = getDirType(d, profile.notif?.location || currentLocation) === 'offshore';
+      const isOn = selectedDirs.includes(d);
+      const bg = isOn ? (isOff ? 'rgba(255,59,92,0.3)' : 'rgba(0,229,160,0.2)') : 'rgba(91,196,245,0.05)';
+      const border = isOn ? (isOff ? 'rgba(255,59,92,0.6)' : 'rgba(0,229,160,0.4)') : 'var(--glass-border)';
+      const col = isOn ? (isOff ? 'var(--wind-red)' : 'var(--wind-green)') : 'var(--text-muted)';
+      return `<button onclick="toggleAlertDir('${d}')" style="padding:5px 8px;border-radius:6px;background:${bg};border:1px solid ${border};color:${col};font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">${d}</button>`;
+    }).join('');
+  }
+
+  // Day picker
+  const dyp = document.getElementById('alertDayPicker');
+  if (dyp) {
+    const days = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+    const selectedDays = profile.notif?.days || [0,1,2,3,4,5,6];
+    dyp.innerHTML = days.map((d,i) => {
+      const isOn = selectedDays.includes(i);
+      return `<button onclick="toggleAlertDay(${i})" style="width:32px;height:32px;border-radius:6px;background:${isOn?'rgba(0,229,160,0.2)':'rgba(91,196,245,0.05)'};border:1px solid ${isOn?'rgba(0,229,160,0.4)':'var(--glass-border)'};color:${isOn?'var(--wind-green)':'var(--text-muted)'};font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">${d}</button>`;
+    }).join('');
+  }
+}
+
+function toggleAlertDir(dir) {
+  if (!profile.notif) profile.notif = {};
+  profile.notif.dirs = profile.notif.dirs || ['SW','SSW','SE','ESE','S','W','WSW'];
+  const idx = profile.notif.dirs.indexOf(dir);
+  if (idx >= 0) profile.notif.dirs.splice(idx, 1);
+  else profile.notif.dirs.push(dir);
+  _store.set('wc_profile', JSON.stringify(profile));
+  renderNotifPrefs();
+}
+
+function toggleAlertDay(day) {
+  if (!profile.notif) profile.notif = {};
+  profile.notif.days = profile.notif.days || [0,1,2,3,4,5,6];
+  const idx = profile.notif.days.indexOf(day);
+  if (idx >= 0) profile.notif.days.splice(idx, 1);
+  else profile.notif.days.push(day);
+  _store.set('wc_profile', JSON.stringify(profile));
+  renderNotifPrefs();
+}
+
+function saveNotifPrefs() {
+  if (!profile.notif) profile.notif = {};
+  const loc = document.getElementById('alertLocation'); if(loc) profile.notif.location = loc.value;
+  const mn = document.getElementById('alertMinWind'); if(mn) profile.notif.minWind = parseFloat(mn.value)||null;
+  const mx = document.getElementById('alertMaxWind'); if(mx) profile.notif.maxWind = parseFloat(mx.value)||null;
+  const la = document.getElementById('alertLookahead'); if(la) profile.notif.lookahead = parseInt(la.value)||1;
+  const tf = document.getElementById('alertTimeFrom'); if(tf) profile.notif.timeFrom = tf.value;
+  const tt = document.getElementById('alertTimeTo'); if(tt) profile.notif.timeTo = tt.value;
+  _store.set('wc_profile', JSON.stringify(profile));
+  // Re-render dir picker (offshore may have changed if location changed)
+  renderNotifPrefs();
+}
+
+// Keep saveAlertPref as alias for compatibility
+function saveAlertPref() { saveNotifPrefs(); }
+
+function checkWindAlertAdvanced() {
+  const ae = document.getElementById('windAlertBanner');
+  if (!ae || !weekData.length) return;
+  const n = profile.notif || {};
+  const minW = n.minWind || profile.alertMin;
+  const maxW = n.maxWind || profile.alertMax;
+  if (!minW) { ae.style.display = 'none'; return; }
+
+  const watchLoc = n.location || profile.homeSpot || currentLocation;
+  const allowedDirs = n.dirs || null; // null = all dirs
+  const allowedDays = n.days || [0,1,2,3,4,5,6];
+  const lookahead = n.lookahead != null ? n.lookahead : 1;
+  const timeFrom = n.timeFrom ? parseInt(n.timeFrom.split(':')[0]) : 0;
+  const timeTo = n.timeTo ? parseInt(n.timeTo.split(':')[0]) : 24;
+
+  const hits = [];
+  weekData.slice(0, Math.min(lookahead + 1, 7)).forEach((day, di) => {
+    const dow = day.date.getDay();
+    if (!allowedDays.includes(dow)) return;
+    day.hours.forEach(h => {
+      const hourOfDay = h.hour;
+      if (hourOfDay < timeFrom || hourOfDay > timeTo) return;
+      const inRange = h.wind >= minW && (!maxW || h.wind <= maxW);
+      const dirOk = !allowedDirs || allowedDirs.includes(h.dir);
+      if (inRange && dirOk) hits.push({ di, hour: h.hour, wind: h.wind, dir: h.dir });
+    });
+  });
+
+  const all = getAllLocations();
+  if (hits.length) {
+    const f = hits[0];
+    const dl = f.di === 0 ? 'TODAY' : f.di === 1 ? 'TOMORROW' : dayName(weekData[f.di].date, f.di);
+    ae.style.display = 'block';
+    ae.innerHTML = `🎯 WIND ALERT — ${minW}–${maxW||'∞'} kts at ${all[watchLoc]?.name||watchLoc}! First: <strong>${dl} ${String(f.hour).padStart(2,'0')}:00</strong> · ${f.wind} kts ${f.dir} · ${hits.length} matching windows`;
+  } else {
+    ae.style.display = 'none';
+  }
+}
+
+// ==================== FEEDBACK ====================
+async function submitFeedback() {
+  const text = document.getElementById('feedbackText')?.value?.trim();
+  if (!text) { alert('Please enter some feedback first'); return; }
+  const name = document.getElementById('feedbackName')?.value || 'Anonymous';
+  const email = document.getElementById('feedbackEmail')?.value || '';
+  const btn = document.getElementById('feedbackBtn');
+  const status = document.getElementById('feedbackStatus');
+  if (btn) { btn.textContent = 'SENDING...'; btn.disabled = true; }
+
+  // Submit to a free FormSpark / Web3Forms endpoint
+  // Replace ACTION_URL with your own FormSpark or Web3Forms URL
+  const payload = {
+    name, email, message: text,
+    app: 'WingCast',
+    location: currentLocation,
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    // Try Web3Forms (free, no backend needed) — user needs to set their access key
+    const accessKey = profile.feedbackKey || 'YOUR_WEB3FORMS_KEY';
+    if (accessKey === 'YOUR_WEB3FORMS_KEY') {
+      // Fallback: just log it and show success (configure key in profile)
+      console.log('Feedback (no key set):', payload);
+      throw new Error('no_key');
+    }
+    await fetch('https://api.web3forms.com/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_key: accessKey, ...payload })
+    });
+    if (status) { status.style.display='block'; status.style.color='var(--wind-green)'; status.textContent='✓ Feedback sent — thank you!'; }
+    document.getElementById('feedbackText').value = '';
+  } catch(e) {
+    // Store locally as fallback
+    const stored = JSON.parse(_store.get('wc_feedback')||'[]');
+    stored.push(payload);
+    _store.set('wc_feedback', JSON.stringify(stored));
+    if (status) { status.style.display='block'; status.style.color='var(--wind-green)'; status.textContent='✓ Feedback saved — thanks! (Configure Web3Forms key to send via email)'; }
+    if (document.getElementById('feedbackText')) document.getElementById('feedbackText').value = '';
+  }
+  if (btn) { btn.textContent = 'SEND FEEDBACK'; btn.disabled = false; }
+}
+if(profile.unit) windUnit=profile.unit;
+rebuildWingRecs();
+
+// Load user's custom locations into LOCATIONS
+(profile.customLocations||[]).forEach(c=>{ LOCATIONS[c.key]=c; });
+
+// First-time user: seed Eastbourne as example if no locations saved
+if(!(profile.customLocations||[]).length) {
+  Object.entries(EXAMPLE_LOCATIONS).forEach(([k,v])=>{ LOCATIONS[k]=v; });
+  profile.customLocations=Object.values(EXAMPLE_LOCATIONS);
+  _store.set('wc_profile', JSON.stringify(profile));
+}
+
+// Set currentLocation to first available location
+const _allLocs = Object.keys(getAllLocations());
+if(!currentLocation || !getAllLocations()[currentLocation]) {
+  currentLocation = _allLocs[0] || 'eastbourne';
+}
+
+syncSpotCoords();
+applyWarningState();
+renderLocationSelect();
+updateOffshoreInfoBar();
+
+async function init() {
+  showLoadingState();
+  weekData = generateWeekData(currentLocation);
+  selectedDay = 0;
+  try {
+    const apiData = await fetchRealWeather(currentLocation);
+    // Only replace fallback if API returned valid data
+    if (apiData && apiData.weather && apiData.weather.windspeed_10m && apiData.weather.windspeed_10m.length) {
+      const apiWeekData = buildWeekDataFromAPI(currentLocation, apiData);
+      if (apiWeekData && apiWeekData.length > 0) {
+        weekData = apiWeekData;
+        usingRealData = true;
+      }
+    }
+  } catch(e) {
+    console.warn('[WingCast] Using simulated data:', e.message);
+    usingRealData = false;
+  }
+  renderAll();
+  showDataSourceBadge(usingRealData);
+  updateOffshoreInfoBar();
+  setTimeout(() => {
+    if (profile.showAISummary !== false) loadAISummary();
+    updateSpotWatchers();
+  }, 500);
+}
+
+// ==================== TUTORIAL ====================
+const TUTORIAL_SLIDES = [
+  { icon:'🏄', title:'Welcome to WingCast', body:'Your personal wingfoil forecast app. Live wind, swell and conditions for your spots — built specifically for wingfoilers.' },
+  { icon:'📍', title:'Add Your Spots', body:'Go to <strong>Profile → My Locations → + Add Location</strong>. Tap the map to drop a pin on your launch spot, then drag the compass arrow to point toward the water.' },
+  { icon:'🏄‍♂️', title:'Set Up Your Quiver', body:'Add your wings in <strong>Profile → My Quiver</strong>. WingCast will recommend the right wing size based on the forecast wind speed and your weight.' },
+  { icon:'🌊', title:'Reading the Forecast', body:'<strong style="color:#00e5a0;">EPIC</strong> = perfect · <strong style="color:#5bc4f5;">GOOD</strong> = solid session · <strong style="color:#f7c948;">MARGINAL</strong> = doable · <strong style="color:#ff3b5c;">OFFSHORE ⚠</strong> = DO NOT LAUNCH. Wind arrows show where the wind is blowing <em>to</em>.' },
+  { icon:'⚙️', title:'Settings & Alerts', body:'Tap the <strong>⚙️ gear icon</strong> to change wind units, set wind alerts for your home spot, and configure notifications.' },
+  { icon:'📋', title:'Log Your Sessions', body:'After a session tap <strong>Sessions → Log Session</strong> to record wind, wing, duration and rating. Track your progress over time.' },
+  { icon:'🎉', title:"You're All Set!", body:'Head to the forecast and check conditions. Replay this tutorial any time from <strong>Profile → Help & Tutorial</strong>.' },
+];
+let tutorialStep = 0;
+
+function showTutorial() {
+  tutorialStep = 0;
+  const modal = document.getElementById('tutorialModal');
+  if (modal) modal.style.display = 'block';
+  renderTutorialSlide();
+}
+
+function renderTutorialSlide() {
+  const slide = TUTORIAL_SLIDES[tutorialStep];
+  const el = document.getElementById('tutorialSlide');
+  const dots = document.getElementById('tutorialDots');
+  const nextBtn = document.getElementById('tutorialNextBtn');
+  const skipBtn = document.getElementById('tutorialSkipBtn');
+  if (!el) return;
+  el.innerHTML = `<div style="font-size:52px;margin-bottom:8px;">${slide.icon}</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--text-bright);letter-spacing:2px;">${slide.title}</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:15px;color:var(--text-dim);line-height:1.5;max-width:340px;">${slide.body}</div>`;
+  if (dots) dots.innerHTML = TUTORIAL_SLIDES.map((_,i) =>
+    `<div style="width:8px;height:8px;border-radius:50%;background:${i===tutorialStep?'var(--wind-green)':'rgba(91,196,245,0.2)'};transition:background 0.2s;"></div>`).join('');
+  const isLast = tutorialStep === TUTORIAL_SLIDES.length - 1;
+  if (nextBtn) nextBtn.textContent = isLast ? "LET'S GO! 🤙" : 'NEXT →';
+  if (skipBtn) skipBtn.style.display = isLast ? 'none' : 'block';
+}
+
+function tutorialNext() {
+  if (tutorialStep < TUTORIAL_SLIDES.length - 1) {
+    tutorialStep++;
+    renderTutorialSlide();
+  } else {
+    skipTutorial();
+  }
+}
+
+function skipTutorial() {
+  const modal = document.getElementById('tutorialModal');
+  if (modal) modal.style.display = 'none';
+  profile.tutorialDone = true;
+  _store.set('wc_profile', JSON.stringify(profile));
+}
+
+function checkFirstRun() {
+  if (!profile.tutorialDone) {
+    showTutorial();
+  }
+}
+
+init().then(() => setTimeout(checkFirstRun, 800)).catch(() => setTimeout(checkFirstRun, 800));
+
+// Auto-refresh every 15 minutes
+setInterval(() => { init(); }, 15 * 60 * 1000);
+</script>
+</body>
+</html>
