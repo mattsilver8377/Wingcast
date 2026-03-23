@@ -2212,36 +2212,48 @@ function conditionColor(cond) {
 function makeArrowIcon(spd, dirDeg) {
   const col = windColor(spd);
   const isMobile = window.innerWidth < 600;
-  const base = isMobile ? 0.85 : 1.0;
+  const base = isMobile ? 0.8 : 1.0;
+  const size = Math.round(40 * base);
 
-  // Much larger sizes for visibility
-  const size = Math.round((spd < 8 ? 28 : spd < 15 ? 36 : spd < 25 ? 44 : 52) * base);
-  const strokeW = Math.round((spd < 8 ? 2 : spd < 15 ? 2.5 : spd < 25 ? 3 : 3.5) * base * 10) / 10;
-
-  const animId = `wa_${Math.round(dirDeg)}_${spd}`;
-  const dx = Math.round(Math.sin(dirDeg * Math.PI / 180) * 10 * base);
-  const dy = Math.round(-Math.cos(dirDeg * Math.PI / 180) * 10 * base);
+  // Windfinder-style: solid teardrop body + sharp arrowhead, rotated to wind direction
+  // Wind barb: tail at top, point at bottom (arrow shows direction wind is blowing TO)
+  const animId = `wf_${Math.round(dirDeg)}_${Math.round(spd)}`;
+  const dx = Math.round(Math.sin(dirDeg * Math.PI / 180) * 8 * base);
+  const dy = Math.round(-Math.cos(dirDeg * Math.PI / 180) * 8 * base);
 
   if (!document.getElementById('style_' + animId)) {
     const s = document.createElement('style');
     s.id = 'style_' + animId;
     s.textContent = `@keyframes ${animId} {
-      0%   { transform: translate(0,0) rotate(${dirDeg}deg); opacity:0.5; }
-      40%  { opacity: 1; }
-      100% { transform: translate(${dx}px,${dy}px) rotate(${dirDeg}deg); opacity:0; }
+      0%   { transform:translate(0,0); opacity:0.3; }
+      50%  { opacity:0.95; }
+      100% { transform:translate(${dx}px,${dy}px); opacity:0; }
     }`;
     document.head.appendChild(s);
   }
 
-  const duration = spd < 5 ? 3.5 : spd < 12 ? 2.5 : spd < 22 ? 1.8 : 1.2;
-  // Always add glow for better visibility on satellite
-  const glow = `filter:drop-shadow(0 0 ${spd >= 20 ? 4 : 2}px ${col});`;
+  const duration = spd < 5 ? 3.2 : spd < 12 ? 2.2 : spd < 22 ? 1.6 : 1.0;
+  const opacity = spd < 5 ? 0.5 : 0.9;
+  const glow = `filter:drop-shadow(0 0 3px ${col}99);`;
 
-  const svg = `<div style="width:${size}px;height:${size}px;animation:${animId} ${duration}s linear infinite;${glow}">
+  // Windfinder-style barb: rounded body narrowing to arrowhead point
+  // Extra barb lines for higher wind speeds
+  const barbs = spd >= 25
+    ? `<line x1="-6" y1="-2" x2="0" y2="-8" stroke="${col}" stroke-width="2" stroke-linecap="round"/>
+       <line x1="-5" y1="2" x2="0" y2="-3" stroke="${col}" stroke-width="1.5" stroke-linecap="round"/>`
+    : spd >= 15
+    ? `<line x1="-6" y1="-1" x2="0" y2="-7" stroke="${col}" stroke-width="2" stroke-linecap="round"/>`
+    : '';
+
+  const svg = `<div style="width:${size}px;height:${size}px;animation:${animId} ${duration}s ease-in infinite;${glow}opacity:${opacity};">
     <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="-14 -14 28 28" style="transform:rotate(${dirDeg}deg)">
-      <line x1="0" y1="9" x2="0" y2="-7" stroke="${col}" stroke-width="${strokeW}" stroke-linecap="round"/>
-      <polygon points="0,-12 -5,-3 5,-3" fill="${col}"/>
-      ${spd >= 25 ? `<line x1="0" y1="2" x2="-5" y2="7" stroke="${col}" stroke-width="${strokeW*0.7}" stroke-linecap="round"/>` : ''}
+      <!-- Teardrop body -->
+      <ellipse cx="0" cy="2" rx="4" ry="7" fill="${col}" opacity="0.85"/>
+      <!-- Arrowhead point -->
+      <polygon points="0,-13 -5,-4 5,-4" fill="${col}"/>
+      <!-- Dark centre dot for depth -->
+      <circle cx="0" cy="3" r="1.5" fill="rgba(0,0,0,0.35)"/>
+      ${barbs}
     </svg>
   </div>`;
 
@@ -2277,7 +2289,12 @@ function makeSpotIcon(locKey, cond, isSelected) {
   const labelCol = isSelected ? '#f7c948' : 'rgba(255,255,255,0.9)';
   const labelWeight = isSelected ? 700 : 500;
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${svgH}" viewBox="-24 -24 48 56">
+  const labelMaxChars = spot.label.length;
+  const svgW = Math.max(Math.round(48 * scale), Math.round(labelMaxChars * 7 * scale));
+  const svgH = Math.round(60 * scale);
+  const svgHalfW = Math.round(svgW / 2);
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${svgH}" viewBox="-${svgHalfW} -24 ${svgW} 56">
     ${pulse}
     <circle cx="0" cy="0" r="${dotR}" fill="${col}" ${ringStroke}/>
     <circle cx="0" cy="0" r="${Math.round(dotR * 0.35)}" fill="${isSelected ? 'white' : '#040d1a'}"/>
@@ -2354,7 +2371,7 @@ function updateMapMarkers() {
     const isInMyList = !!LOCATIONS[key];
     const isBuiltinSpot = !!BUILTIN_SPOTS[key];
     const addBtn = isBuiltinSpot && !isInMyList
-      ? `<button onclick="addBuiltinToMySpots('${key}')" style="margin-top:8px;width:100%;padding:5px 8px;background:rgba(0,229,160,0.15);border:1px solid rgba(0,229,160,0.4);border-radius:4px;color:#00e5a0;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">+ ADD TO MY SPOTS</button>`
+      ? `<button class="wc-add-spot-btn" data-key="${key}" style="margin-top:8px;width:100%;padding:5px 8px;background:rgba(0,229,160,0.15);border:1px solid rgba(0,229,160,0.4);border-radius:4px;color:#00e5a0;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">+ ADD TO MY SPOTS</button>`
       : isInMyList ? `<div style="margin-top:6px;font-size:11px;color:#00e5a0;text-align:center;">✓ In your spots</div>` : '';
     marker.bindPopup(`
       <div style="font-family:'Barlow Condensed',sans-serif;min-width:140px;">
@@ -2367,6 +2384,15 @@ function updateMapMarkers() {
         ${addBtn}
       </div>
     `, { maxWidth: 200 });
+
+    // Wire up Add to My Spots button via popupopen (avoids Leaflet iframe scope issue)
+    marker.on('popupopen', function() {
+      const btn = document.querySelector('.wc-add-spot-btn[data-key="' + key + '"]');
+      if (btn) btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        addBuiltinToMySpots(key);
+      });
+    });
 
     marker.on('click', () => {
       // Select this location
