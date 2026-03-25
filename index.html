@@ -1650,6 +1650,8 @@ function buildWeekDataFromAPI(locKey, apiData) {
   const loc = LOCATIONS[locKey] || BUILTIN_SPOTS[locKey] || Object.values(LOCATIONS)[0];
   const days = [];
   if (!loc) return [];
+  const { weather: apiHourly, marine: apiMarine } = apiData;
+  if (!apiHourly) return [];
   const today = new Date();
   today.setHours(0,0,0,0);
 

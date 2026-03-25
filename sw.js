@@ -1,5 +1,5 @@
-// WingCast Service Worker v29 - GitHub Pages compatible
-const CACHE_NAME = 'wingcast-v29';
+// WingCast Service Worker v30 - GitHub Pages compatible
+const CACHE_NAME = 'wingcast-v30';
 const BASE = '/Wingcast';
 
 self.addEventListener('install', event => {
@@ -23,8 +23,14 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   if (event.request.url.startsWith('chrome-extension')) return;
 
-  // Always fetch HTML fresh
   const url = new URL(event.request.url);
+
+  // Never cache external API calls — always fetch fresh and don't intercept
+  if (!url.hostname.includes('github.io') && !url.hostname.includes('githubusercontent.com')) {
+    return; // Let browser handle API calls natively
+  }
+
+  // Always fetch HTML fresh
   if (url.pathname.endsWith('.html') || url.pathname === BASE + '/' || url.pathname === BASE) {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(BASE + '/index.html'))
@@ -32,12 +38,13 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Cache first for assets
+  // Cache first for local assets (icons, manifest etc)
   event.respondWith(
     caches.match(event.request).then(cached => cached ||
       fetch(event.request).then(resp => {
-        if (resp && resp.status === 200) {
-          caches.open(CACHE_NAME).then(c => c.put(event.request, resp.clone()));
+        if (resp && resp.status === 200 && resp.type !== 'opaque') {
+          const respClone = resp.clone();
+          caches.open(CACHE_NAME).then(c => c.put(event.request, respClone));
         }
         return resp;
       }).catch(() => null)
