@@ -3414,7 +3414,6 @@ function switchTab(tab) {
   const ib=document.getElementById('offshoreInfoBar'); if(ib) ib.style.display=(sf&&profile.showWarnings!==false)?'':'none';
   const db=document.getElementById('dataSrcBadge'); if(db) db.style.display=sf?'':'none';
   const ai=document.getElementById('aiSummaryBar'); if(ai) ai.style.display=(sf&&profile.showAISummary!==false)?'':'none';
-  const sw=document.getElementById('spotWatchers'); if(sw) sw.style.display=sf?'':'none';
   document.getElementById('sessionsPanel').style.display=tab==='sessions'?'':'none';
   document.getElementById('profilePanel').style.display=tab==='profile'?'':'none';
   if(tab==='sessions') renderSessions();
@@ -3618,24 +3617,6 @@ function toggleAISummary() {
 }
 
 // ==================== SPOT WATCHERS ====================
-function updateSpotWatchers() {
-  const el = document.getElementById('spotWatchers');
-  const txt = document.getElementById('watchersText');
-  if (!el || !txt) return;
-  const key = 'wc_watchers_' + currentLocation;
-  const now = Date.now();
-  let watchers = JSON.parse(_store.get(key) || '[]');
-  watchers = watchers.filter(t => now - t < 30 * 60 * 1000);
-  watchers.push(now);
-  _store.set(key, JSON.stringify(watchers));
-  const count = watchers.length;
-  const loc = getAllLocations()[currentLocation];
-  txt.textContent = count === 1
-    ? `1 wingfoiler watching ${loc?.name||currentLocation} today`
-    : `${count} wingfoilers watching ${loc?.name||currentLocation} today`;
-  el.style.display = 'flex';
-}
-
 // ==================== NOTIFICATIONS / ALERT PREFS ====================
 const ALL_DIRS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 
@@ -3856,17 +3837,18 @@ async function init() {
   updateOffshoreInfoBar();
   setTimeout(() => {
     if (profile.showAISummary !== false) loadAISummary();
-    updateSpotWatchers();
+    
   }, 500);
 }
 
 // ==================== TUTORIAL ====================
 const TUTORIAL_SLIDES = [
-  { icon:'🏄', title:'Welcome to WingCast', body:'Your personal wingfoil forecast app. Live wind, swell and conditions for your spots — built specifically for wingfoilers.' },
-  { icon:'📍', title:'Add Your Spots', body:'Go to <strong>Profile → My Locations → + Add Location</strong>. Tap the map to drop a pin on your launch spot, then drag the compass arrow to point toward the water.' },
+  { icon:'🏄', title:'Welcome to WingCast', body:'Your personal wingfoil forecast app. Live wind, swell and conditions for your spots — built specifically for wingfoilers. 74 UK spots pre-loaded, or add your own anywhere in the world.' },
+  { icon:'📍', title:'Add Your Spots', body:'Two ways to add spots:<br><br><strong>Browse built-in UK spots</strong> — go to <strong>Profile → Browse UK Spots</strong>, find your local spot and tap <strong>+ ADD</strong>.<br><br><strong>Add a custom spot</strong> — tap <strong>+ ADD LOCATION</strong>, drop a pin anywhere on the map and drag the compass to point toward the water.' },
   { icon:'🏄‍♂️', title:'Set Up Your Quiver', body:'Add your wings in <strong>Profile → My Quiver</strong>. WingCast will recommend the right wing size based on the forecast wind speed and your weight.' },
-  { icon:'🌊', title:'Reading the Forecast', body:'<strong style="color:#00e5a0;">EPIC</strong> = perfect · <strong style="color:#5bc4f5;">GOOD</strong> = solid session · <strong style="color:#f7c948;">MARGINAL</strong> = doable · <strong style="color:#ff3b5c;">OFFSHORE ⚠</strong> = DO NOT LAUNCH. Wind arrows show where the wind is blowing <em>to</em>.' },
-  { icon:'⚙️', title:'Settings & Alerts', body:'Tap the <strong>⚙️ gear icon</strong> to change wind units, set wind alerts for your home spot, and configure notifications.' },
+  { icon:'🌊', title:'Reading the Forecast', body:'<strong style="color:#00e5a0;">EPIC</strong> = perfect · <strong style="color:#5bc4f5;">GOOD</strong> = solid session · <strong style="color:#f7c948;">MARGINAL</strong> = doable · <strong style="color:#ff3b5c;">OFFSHORE ⚠</strong> = DO NOT LAUNCH. Wind arrows show where wind is blowing <em>to</em>. The TIDE column shows height in metres with ↑↓ trend.' },
+  { icon:'🗺️', title:'The Wind Map', body:'The satellite map shows animated wind particles — speed, direction and colour all reflect live conditions. Tap any green pin to see that spot\'s conditions and add it to your list. Use PLAY to animate through the day.' },
+  { icon:'⚙️', title:'Settings & Alerts', body:'Tap the <strong>⚙️ gear icon</strong> to change wind units (kts/mph/kmh), set wind alerts for your home spot, and configure notifications.' },
   { icon:'📋', title:'Log Your Sessions', body:'After a session tap <strong>Sessions → Log Session</strong> to record wind, wing, duration and rating. Track your progress over time.' },
   { icon:'🎉', title:"You're All Set!", body:'Head to the forecast and check conditions. Replay this tutorial any time from <strong>Profile → Help & Tutorial</strong>.' },
 ];
