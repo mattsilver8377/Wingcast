@@ -1737,8 +1737,6 @@ function calcHarmonicTide(portKey, dateUTC, hourUTC) {
 }
 
 function buildTidePoints(locKey, date) {
-  // Find nearest port
-  const portKey = SPOT_TIDE_PORT[locKey];
   const loc = LOCATIONS[locKey] || BUILTIN_SPOTS[locKey];
 
   // Inland lakes — no tides
@@ -1746,6 +1744,28 @@ function buildTidePoints(locKey, date) {
     const pts = [];
     for (let t = 0; t <= 24; t++) pts.push({ t, h: 0 });
     return pts;
+  }
+
+  // Find port to use — explicit mapping first, then nearest by lat/lon
+  let portKey = SPOT_TIDE_PORT[locKey];
+
+  if (!portKey) {
+    // For custom locations, find nearest reference port by geographic distance
+    const portCoords = {
+      newhaven:[50.770,0.057], portsmouth:[50.797,-1.100], shoreham:[50.830,-0.274],
+      dover:[51.127,1.337], weymouth:[50.606,-2.450], portland:[50.572,-2.440],
+      bournemouth:[50.715,-1.875], devonport:[50.370,-4.180], newlyn:[50.102,-5.548],
+      exmouth:[50.607,-3.413], lowestoft:[52.472,1.752], hunstanton:[52.939,0.492],
+      northshields:[55.017,-1.425], scarborough:[54.278,-0.388], liverpool:[53.400,-3.017],
+      heysham:[54.033,-2.925], holyhead:[53.323,-4.627], milfordhaven:[51.703,-5.053],
+      mumbles:[51.570,-3.973], leith:[55.990,-3.183], aberdeen:[57.145,-2.072],
+      troon:[55.541,-4.673], belfast:[54.601,-5.917], portrush:[55.204,-6.657],
+    };
+    let minDist = Infinity;
+    for (const [key, [plat, plon]] of Object.entries(portCoords)) {
+      const d = Math.sqrt(Math.pow(loc.lat - plat, 2) + Math.pow(loc.lon - plon, 2));
+      if (d < minDist) { minDist = d; portKey = key; }
+    }
   }
 
   // Use harmonic calculator if we have port constants
@@ -1758,9 +1778,8 @@ function buildTidePoints(locKey, date) {
     return pts;
   }
 
-  // Fallback for custom locations without port data — improved sinusoidal
-  // Uses lunar day offset to get correct timing shift
-  const lunarHour = 12.4206; // M2 period hours
+  // Last resort fallback for non-UK locations — improved sinusoidal using lunar day
+  const lunarHour = 12.4206;
   const daysSinceEpoch = (date.getTime() - Date.UTC(2000, 0, 1)) / 86400000;
   const phaseOffset = ((daysSinceEpoch * 24 / lunarHour) % 1) * 2 * Math.PI;
   const [tMin, tMax] = loc.tideRange;
@@ -1985,10 +2004,13 @@ function nextUnit() {
   const idx = WIND_UNITS.indexOf(windUnit);
   windUnit = WIND_UNITS[(idx + 1) % WIND_UNITS.length];
   document.getElementById('unitToggleBtn').textContent = unitLabel(windUnit);
-  // Re-render everything that shows wind
+  updateUnitPrefBtns();
   renderBanner();
   renderStats();
   renderForecastTable();
+  updateMapLegend();
+  profile.unit = windUnit;
+  _store.set('wc_profile', JSON.stringify(profile));
 }
 
 function unitLabel(u) {
@@ -3235,8 +3257,33 @@ function saveNewLocation() {
     else onDirs.push(dir);
   });
   const allWindDirs=[...crossDirs,...onDirs];
+
+  // Estimate tideRange from nearest harmonic port
+  const portCoords = {
+    newhaven:[50.770,0.057], portsmouth:[50.797,-1.100], shoreham:[50.830,-0.274],
+    dover:[51.127,1.337], weymouth:[50.606,-2.450], portland:[50.572,-2.440],
+    bournemouth:[50.715,-1.875], devonport:[50.370,-4.180], newlyn:[50.102,-5.548],
+    exmouth:[50.607,-3.413], lowestoft:[52.472,1.752], hunstanton:[52.939,0.492],
+    northshields:[55.017,-1.425], scarborough:[54.278,-0.388], liverpool:[53.400,-3.017],
+    heysham:[54.033,-2.925], holyhead:[53.323,-4.627], milfordhaven:[51.703,-5.053],
+    mumbles:[51.570,-3.973], leith:[55.990,-3.183], aberdeen:[57.145,-2.072],
+    troon:[55.541,-4.673], belfast:[54.601,-5.917], portrush:[55.204,-6.657],
+  };
+  let nearestPort = null, minDist = Infinity;
+  for (const [pkey, [plat, plon]] of Object.entries(portCoords)) {
+    const d = Math.sqrt(Math.pow(lat - plat, 2) + Math.pow(lon - plon, 2));
+    if (d < minDist) { minDist = d; nearestPort = pkey; }
+  }
+  let tideRange = [0.5, 6.0]; // default
+  if (nearestPort && TIDE_PORTS[nearestPort]) {
+    const p = TIDE_PORTS[nearestPort];
+    const hw = +(p.msl + p.M2a + p.S2a).toFixed(1);
+    const lw = +Math.max(0, p.msl - p.M2a - p.S2a).toFixed(1);
+    tideRange = [lw, hw];
+  }
+
   const newLoc={key,name,lat,lon,waterTemp:12,sunrise:'06:30',sunset:'19:00',
-    tideRange:[0.5,6.0],beachBearing:bearing,
+    tideRange,beachBearing:bearing,
     crossDirs,onDirs,offDirs,allWindDirs:allWindDirs.length?allWindDirs:['SW','S','SE'],isCustom:true};
   LOCATIONS[key]=newLoc;
   SPOT_COORDS[key]={lat,lon,label:name};
