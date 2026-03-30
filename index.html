@@ -2881,7 +2881,7 @@ function setupMapMoveListener() {
 // Register service worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
+    navigator.serviceWorker.register('firebase-messaging-sw.js');
       .then(reg => console.log('[WingCast] SW registered:', reg.scope))
       .catch(err => console.warn('[WingCast] SW failed:', err));
   });
