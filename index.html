@@ -862,6 +862,8 @@
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -1063,11 +1065,25 @@
     <!-- Header with avatar -->
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;padding:18px;background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;">
       <div id="profileAvatarDisplay" onclick="openAvatarPicker()" style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--wind-green),var(--sky));display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;cursor:pointer;border:2px solid rgba(0,229,160,0.3);" title="Tap to change avatar">🤙</div>
-      <div>
+      <div style="min-width:0;flex:1;">
         <div id="profileName" style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--text-bright);letter-spacing:2px;">WINGFOILER</div>
         <div id="profileTagline" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);letter-spacing:1px;">Set up your profile below</div>
+        <div id="authEmailDisplay" style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:1px;margin-top:2px;display:none;"></div>
       </div>
-      <div style="margin-left:auto;padding:5px 12px;background:linear-gradient(135deg,rgba(0,229,160,0.2),rgba(91,196,245,0.1));border:1px solid rgba(0,229,160,0.3);border-radius:20px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--wind-green);letter-spacing:2px;">⭐ PRO</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+        <div id="proBadge" style="display:none;padding:5px 12px;background:linear-gradient(135deg,rgba(0,229,160,0.2),rgba(91,196,245,0.1));border:1px solid rgba(0,229,160,0.3);border-radius:20px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--wind-green);letter-spacing:2px;">⭐ PRO</div>
+        <button id="authBtn" onclick="openAuthModal()" style="padding:6px 14px;background:rgba(91,196,245,0.12);border:1px solid rgba(91,196,245,0.3);border-radius:8px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">SIGN IN</button>
+      </div>
+    </div>
+    <!-- Pro upgrade banner -->
+    <div id="proUpgradeBanner" style="display:none;margin-bottom:14px;padding:16px 18px;background:linear-gradient(135deg,rgba(247,201,72,0.12),rgba(255,140,66,0.06));border:1px solid rgba(247,201,72,0.35);border-radius:14px;cursor:pointer;" onclick="openProModal()">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--wind-yellow);letter-spacing:2px;">🚀 UPGRADE TO PRO</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);margin-top:2px;">GPS tracks · 7-day forecast · Unlimited spots · From £1.99/mo</div>
+        </div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--wind-yellow);letter-spacing:1px;">TRY FREE →</div>
+      </div>
     </div>
     <!-- Rider -->
     <div class="profile-section">
@@ -2255,6 +2271,7 @@ function renderDayTabs() {
     </div>`;
   });
   document.getElementById('dayTabs').innerHTML = tabs.join('');
+  setTimeout(() => { if (typeof applyProGating === 'function') applyProGating(); }, 50);
 }
 
 function getBestCondition(day) {
@@ -3769,7 +3786,16 @@ function renderSessions() {
     (s.swell?'<div class="session-stat"><div class="session-stat-val" style="color:var(--sky);">'+s.swell+'m</div><div class="session-stat-lbl">SWELL</div></div>':'')+
     (s.wing?'<div class="session-stat"><div class="session-stat-val" style="color:var(--wind-green);">'+s.wing+'m</div><div class="session-stat-lbl">WING</div></div>':'')+
     (s.wetsuit?'<div class="session-stat"><div class="session-stat-val" style="color:#7ab3d4;font-size:13px;">'+s.wetsuit+'</div><div class="session-stat-lbl">WETSUIT</div></div>':'')+
-    '</div>'+(s.notes?'<div style="margin-top:8px;font-family:\'Barlow Condensed\',sans-serif;font-size:12px;color:var(--text-dim);border-top:1px solid var(--glass-border);padding-top:8px;">'+s.notes+'</div>':'')+
+    (s.gpx?'<div class="session-stat"><div class="session-stat-val" style="color:var(--wind-green);font-size:13px;">'+s.gpx.distKm.toFixed(1)+'km</div><div class="session-stat-lbl">DISTANCE</div></div>':'')+
+    (s.gpx?'<div class="session-stat"><div class="session-stat-val" style="color:var(--wind-yellow);font-size:13px;">'+s.gpx.maxSpeedKts+'kts</div><div class="session-stat-lbl">MAX SPD</div></div>':'')+
+    '</div>'+
+    '<div style="display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--glass-border);">'+
+    '<button onclick="openSessionDetail('+s.id+')" style="flex:1;padding:8px;background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);border-radius:8px;color:var(--sky);font-family:\'Barlow Condensed\',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">📊 STATS</button>'+
+    (s.gpx
+      ? '<button onclick="openTrackView('+s.id+')" style="flex:1;padding:8px;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.25);border-radius:8px;color:var(--wind-green);font-family:\'Barlow Condensed\',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">🗺️ TRACK</button>'
+      : '<button onclick="attachGpx('+s.id+')" style="flex:1;padding:8px;background:rgba(247,201,72,0.06);border:1px solid rgba(247,201,72,0.2);border-radius:8px;color:var(--wind-yellow);font-family:\'Barlow Condensed\',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">📍 ADD TRACK</button>')+
+    '</div>'+
+    (s.notes?'<div style="margin-top:8px;font-family:\'Barlow Condensed\',sans-serif;font-size:12px;color:var(--text-dim);">'+s.notes+'</div>':'')+
     '</div>').join('');
 }
 
@@ -4288,6 +4314,632 @@ window.addEventListener('load', () => {
   initFirebase();
   updatePushBtn();
 });
+</script>
+
+<!-- ====== SESSION DETAIL MODAL ====== -->
+<div id="sessionDetailModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.98);z-index:2000;overflow-y:auto;padding:16px 16px 40px;">
+  <div style="max-width:520px;margin:0 auto;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <button onclick="closeSessionDetail()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;padding:0;">←</button>
+      <div id="sdTitle" style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--text-bright);letter-spacing:2px;flex:1;"></div>
+      <div id="sdDate" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);letter-spacing:1px;"></div>
+    </div>
+
+    <!-- Track map (shown if GPX attached) -->
+    <div id="sdMapWrap" style="display:none;border-radius:12px;overflow:hidden;margin-bottom:14px;border:1px solid var(--glass-border);">
+      <div id="sdMap" style="width:100%;height:260px;"></div>
+    </div>
+
+    <!-- No track yet -->
+    <div id="sdNoTrack" style="margin-bottom:14px;padding:16px;background:rgba(247,201,72,0.05);border:1px solid rgba(247,201,72,0.2);border-radius:12px;text-align:center;">
+      <div style="font-size:28px;margin-bottom:8px;">📍</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-dim);margin-bottom:12px;">No GPS track attached to this session.</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);margin-bottom:14px;">Export a .gpx file from your Garmin, Suunto, Apple Watch or any GPS app and upload it here to see your track and performance stats.</div>
+      <button onclick="triggerGpxUpload()" style="padding:10px 24px;background:rgba(247,201,72,0.15);border:1px solid rgba(247,201,72,0.4);border-radius:8px;color:var(--wind-yellow);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;cursor:pointer;">📂 UPLOAD GPX FILE</button>
+    </div>
+
+    <!-- GPS Stats (shown after GPX loaded) -->
+    <div id="sdGpsStats" style="display:none;margin-bottom:14px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:3px;margin-bottom:10px;">GPS PERFORMANCE</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;" id="sdStatsGrid"></div>
+    </div>
+
+    <!-- Direction / Tack Stats -->
+    <div id="sdTackStats" style="display:none;margin-bottom:14px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:3px;margin-bottom:12px;">DIRECTION CHANGES</div>
+      <div id="sdTackContent"></div>
+    </div>
+
+    <!-- Speed chart -->
+    <div id="sdSpeedChartWrap" style="display:none;margin-bottom:14px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:3px;margin-bottom:10px;">SPEED OVER SESSION</div>
+      <canvas id="sdSpeedChart" style="width:100%;height:80px;display:block;"></canvas>
+      <div style="display:flex;justify-content:space-between;margin-top:4px;font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);">
+        <span id="sdChartStart"></span><span id="sdChartEnd"></span>
+      </div>
+    </div>
+
+    <!-- Session info -->
+    <div id="sdInfo" style="background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;margin-bottom:14px;" ></div>
+
+    <!-- Replace/remove GPX -->
+    <div id="sdGpxActions" style="display:none;display:flex;gap:8px;">
+      <button onclick="triggerGpxUpload()" style="flex:1;padding:10px;background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);border-radius:8px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">↑ REPLACE GPX</button>
+      <button onclick="removeGpx()" style="padding:10px 16px;background:rgba(255,59,92,0.08);border:1px solid rgba(255,59,92,0.2);border-radius:8px;color:var(--wind-red);font-family:'Barlow Condensed',sans-serif;font-size:12px;cursor:pointer;">✕ REMOVE</button>
+    </div>
+
+    <input type="file" id="gpxFileInput" accept=".gpx" style="display:none;" onchange="handleGpxFile(event)">
+  </div>
+</div>
+
+<!-- ====== AUTH MODAL ====== -->
+<div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.97);z-index:3000;overflow-y:auto;padding:20px;">
+  <div style="max-width:420px;margin:0 auto;padding-bottom:40px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--wind-green);letter-spacing:3px;">SIGN IN</div>
+      <button onclick="closeAuthModal()" style="background:none;border:none;color:var(--text-dim);font-size:24px;cursor:pointer;">✕</button>
+    </div>
+    <div style="display:flex;gap:0;margin-bottom:24px;border-radius:10px;overflow:hidden;border:1px solid var(--glass-border);">
+      <button id="authTabLogin" onclick="switchAuthTab('login')" style="flex:1;padding:10px;background:rgba(91,196,245,0.15);border:none;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;">SIGN IN</button>
+      <button id="authTabRegister" onclick="switchAuthTab('register')" style="flex:1;padding:10px;background:transparent;border:none;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;">REGISTER</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div id="authRegisterNameField" style="display:none;">
+        <label style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:2px;display:block;margin-bottom:5px;">YOUR NAME</label>
+        <input id="authName" type="text" placeholder="First name" class="profile-input">
+      </div>
+      <div>
+        <label style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:2px;display:block;margin-bottom:5px;">EMAIL</label>
+        <input id="authEmail" type="email" placeholder="your@email.com" class="profile-input">
+      </div>
+      <div>
+        <label style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:2px;display:block;margin-bottom:5px;">PASSWORD</label>
+        <input id="authPassword" type="password" placeholder="Password" class="profile-input">
+      </div>
+      <div id="authErrorMsg" style="display:none;font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--wind-red);letter-spacing:1px;padding:10px 14px;background:rgba(255,59,92,0.08);border:1px solid rgba(255,59,92,0.25);border-radius:8px;"></div>
+      <button id="authSubmitBtn" onclick="submitAuth()" style="padding:14px;background:linear-gradient(135deg,rgba(0,229,160,0.25),rgba(91,196,245,0.15));border:1px solid rgba(0,229,160,0.4);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;">SIGN IN</button>
+      <button id="authForgotBtn" onclick="sendPasswordReset()" style="background:none;border:none;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:1px;cursor:pointer;text-decoration:underline;padding:4px 0;">Forgot password?</button>
+      <div style="display:flex;align-items:center;gap:12px;margin:4px 0;"><div style="flex:1;height:1px;background:var(--glass-border);"></div><span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:1px;">OR</span><div style="flex:1;height:1px;background:var(--glass-border);"></div></div>
+      <button onclick="signInWithGoogle()" style="padding:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:var(--text-bright);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        CONTINUE WITH GOOGLE
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== PRO MODAL ====== -->
+<div id="proModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.97);z-index:3000;overflow-y:auto;padding:20px;">
+  <div style="max-width:420px;margin:0 auto;padding-bottom:40px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--wind-yellow);letter-spacing:3px;">WINGCAST PRO</div>
+      <button onclick="closeProModal()" style="background:none;border:none;color:var(--text-dim);font-size:24px;cursor:pointer;">✕</button>
+    </div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-dim);letter-spacing:1px;margin-bottom:20px;">Wind, waves and GPS tracking — without any limits.</div>
+    <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;padding:18px;margin-bottom:20px;">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">GPS TRACK IMPORT</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Upload .gpx from Garmin, Suunto, Apple Watch</div></div></div>
+        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">SESSION PERFORMANCE STATS</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Distance, max speed, tack count, port/starboard split</div></div></div>
+        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">7-DAY FORECAST</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Full week view — free shows 3 days</div></div></div>
+        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">UNLIMITED SPOTS & SESSIONS</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Free limits 2 spots and 10 sessions</div></div></div>
+        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">PUSH WIND ALERTS</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Notified when your spot hits target wind</div></div></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div onclick="selectPlan('monthly')" id="planMonthly" style="padding:18px 14px;background:var(--glass);border:2px solid var(--glass-border);border-radius:14px;text-align:center;cursor:pointer;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--text-bright);letter-spacing:1px;margin-bottom:6px;">MONTHLY</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--sky);line-height:1;">£1.99</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);margin-top:4px;">£1.99 / month</div>
+      </div>
+      <div onclick="selectPlan('yearly')" id="planYearly" style="padding:18px 14px;background:rgba(247,201,72,0.06);border:2px solid rgba(247,201,72,0.5);border-radius:14px;text-align:center;cursor:pointer;position:relative;">
+        <div style="position:absolute;top:-1px;right:-1px;background:var(--wind-yellow);color:var(--ocean-deep);font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:0 12px 0 8px;">BEST VALUE</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--text-bright);letter-spacing:1px;margin-bottom:6px;">YEARLY</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--wind-yellow);line-height:1;">£14.99</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--wind-yellow);margin-top:4px;">£1.25 / month</div>
+      </div>
+    </div>
+    <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--wind-green);letter-spacing:1px;margin-bottom:16px;">🎉 7 day free trial included in all plans</div>
+    <button id="proCheckoutBtn" onclick="startCheckout()" style="width:100%;padding:16px;background:linear-gradient(135deg,rgba(247,201,72,0.3),rgba(255,140,66,0.2));border:1px solid rgba(247,201,72,0.6);border-radius:12px;color:var(--wind-yellow);font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:3px;cursor:pointer;margin-bottom:12px;">START FREE TRIAL →</button>
+    <div style="background:rgba(0,229,160,0.05);border:1px solid rgba(0,229,160,0.15);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:20px;">💚</span>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);letter-spacing:1px;">Don't want to subscribe? WingCast will always be free to use.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== AUTH & SUBSCRIPTION ====================
+let _fbAuth = null, _fbDb = null, wcUser = null, wcUserPro = false;
+let selectedPlan = 'yearly';
+const FREE_DAY_LIMIT = 3;
+const STRIPE_LINKS = { monthly: 'https://buy.stripe.com/REPLACE_MONTHLY', yearly: 'https://buy.stripe.com/REPLACE_YEARLY' };
+
+function initFirebaseAuth() {
+  if (_fbAuth) return;
+  try {
+    const app = (typeof firebase !== 'undefined') ? (firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG)) : null;
+    if (!app) return;
+    _fbAuth = firebase.auth(app);
+    _fbDb   = firebase.firestore(app);
+    _fbAuth.onAuthStateChanged(async user => {
+      wcUser = user;
+      if (user) {
+        try {
+          const doc = await _fbDb.collection('users').doc(user.uid).get();
+          if (doc.exists) { wcUserPro = doc.data().isPro === true; }
+          else { await _fbDb.collection('users').doc(user.uid).set({ email: user.email, isPro: false, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); wcUserPro = false; }
+        } catch(e) { wcUserPro = false; }
+      } else { wcUserPro = false; }
+      updateAuthUI(); applyProGating();
+    });
+  } catch(e) { console.warn('[WingCast] Auth init:', e.message); }
+}
+
+function updateAuthUI() {
+  const btn = document.getElementById('authBtn');
+  const emailEl = document.getElementById('authEmailDisplay');
+  const badge = document.getElementById('proBadge');
+  const banner = document.getElementById('proUpgradeBanner');
+  if (wcUser) {
+    if (btn) { btn.textContent = 'ACCOUNT'; btn.onclick = openAccountMenu; }
+    if (emailEl) { emailEl.textContent = wcUser.email; emailEl.style.display = 'block'; }
+  } else {
+    if (btn) { btn.textContent = 'SIGN IN'; btn.onclick = openAuthModal; }
+    if (emailEl) emailEl.style.display = 'none';
+  }
+  if (badge) badge.style.display = wcUserPro ? 'block' : 'none';
+  if (banner) banner.style.display = (wcUser && !wcUserPro) ? 'flex' : 'none';
+}
+
+function applyProGating() {
+  document.querySelectorAll('.day-tab').forEach((tab, i) => {
+    if (!wcUserPro && i >= FREE_DAY_LIMIT) {
+      tab.style.opacity = '0.4';
+      tab.title = 'Pro feature — upgrade for full 7-day forecast';
+      tab.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openProModal(); };
+    } else {
+      tab.style.opacity = '';
+      tab.title = '';
+    }
+  });
+}
+
+let authMode = 'login';
+function openAuthModal() { switchAuthTab('login'); document.getElementById('authModal').style.display = 'block'; }
+function closeAuthModal() { document.getElementById('authModal').style.display = 'none'; }
+
+function switchAuthTab(mode) {
+  authMode = mode;
+  const on = 'flex:1;padding:10px;background:rgba(91,196,245,0.15);border:none;color:var(--sky);font-family:\'Barlow Condensed\',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;';
+  const off = 'flex:1;padding:10px;background:transparent;border:none;color:var(--text-muted);font-family:\'Barlow Condensed\',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;';
+  document.getElementById('authTabLogin').style.cssText = mode==='login' ? on : off;
+  document.getElementById('authTabRegister').style.cssText = mode==='register' ? on : off;
+  document.getElementById('authRegisterNameField').style.display = mode==='register' ? 'block' : 'none';
+  document.getElementById('authSubmitBtn').textContent = mode==='login' ? 'SIGN IN' : 'CREATE ACCOUNT';
+  document.getElementById('authForgotBtn').style.display = mode==='login' ? 'block' : 'none';
+  document.getElementById('authErrorMsg').style.display = 'none';
+}
+
+async function submitAuth() {
+  const email = document.getElementById('authEmail').value.trim();
+  const pass  = document.getElementById('authPassword').value;
+  const btn   = document.getElementById('authSubmitBtn');
+  if (!email || !pass) { showAuthError('Please enter email and password.'); return; }
+  if (!_fbAuth) { showAuthError('Auth unavailable — try again shortly.'); return; }
+  btn.textContent = '...'; btn.disabled = true;
+  try {
+    if (authMode === 'login') { await _fbAuth.signInWithEmailAndPassword(email, pass); }
+    else { const c = await _fbAuth.createUserWithEmailAndPassword(email, pass); const n = document.getElementById('authName').value.trim(); if (n) await c.user.updateProfile({displayName:n}); }
+    closeAuthModal();
+    if (authMode === 'register') setTimeout(() => openProModal(), 800);
+  } catch(e) {
+    btn.disabled = false; btn.textContent = authMode==='login'?'SIGN IN':'CREATE ACCOUNT';
+    showAuthError({
+      'auth/user-not-found':'No account with that email.',
+      'auth/wrong-password':'Incorrect password.',
+      'auth/email-already-in-use':'Account already exists.',
+      'auth/weak-password':'Password must be 6+ characters.',
+      'auth/invalid-email':'Invalid email address.'
+    }[e.code] || 'Something went wrong.');
+  }
+}
+
+async function signInWithGoogle() {
+  if (!_fbAuth) return;
+  try { await _fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); closeAuthModal(); } catch(e) { showAuthError(e.message); }
+}
+
+async function sendPasswordReset() {
+  const email = document.getElementById('authEmail').value.trim();
+  if (!email) { showAuthError('Enter your email above first.'); return; }
+  try { await _fbAuth.sendPasswordResetEmail(email); showAuthError('✓ Reset email sent!', true); } catch(e) { showAuthError(e.message); }
+}
+
+function showAuthError(msg, ok=false) {
+  const el = document.getElementById('authErrorMsg');
+  el.textContent = msg; el.style.display = 'block';
+  el.style.color = ok ? 'var(--wind-green)' : 'var(--wind-red)';
+  el.style.background = ok ? 'rgba(0,229,160,0.08)' : 'rgba(255,59,92,0.08)';
+  el.style.border = ok ? '1px solid rgba(0,229,160,0.25)' : '1px solid rgba(255,59,92,0.25)';
+}
+
+function openAccountMenu() {
+  if (confirm(`Signed in as: ${wcUser.email}\nStatus: ${wcUserPro?'⭐ PRO':'Free'}\n\nOK to sign out?`)) _fbAuth.signOut();
+}
+
+function openProModal() {
+  if (!wcUser) { openAuthModal(); showAuthError('Create a free account first to upgrade. 👆', true); return; }
+  selectPlan('yearly');
+  document.getElementById('proModal').style.display = 'block';
+}
+function closeProModal() { document.getElementById('proModal').style.display = 'none'; }
+
+function selectPlan(plan) {
+  selectedPlan = plan;
+  const m = document.getElementById('planMonthly'), y = document.getElementById('planYearly');
+  if (!m||!y) return;
+  m.style.borderColor = plan==='monthly' ? 'var(--sky)' : 'var(--glass-border)';
+  m.style.background  = plan==='monthly' ? 'rgba(91,196,245,0.1)' : 'var(--glass)';
+  y.style.borderColor = plan==='yearly'  ? 'var(--wind-yellow)' : 'rgba(247,201,72,0.3)';
+  y.style.background  = plan==='yearly'  ? 'rgba(247,201,72,0.1)' : 'rgba(247,201,72,0.04)';
+}
+
+function startCheckout() {
+  const link = STRIPE_LINKS[selectedPlan];
+  if (!link || link.includes('REPLACE')) { alert('Stripe links not yet configured — coming soon!'); return; }
+  window.open(wcUser ? `${link}?prefilled_email=${encodeURIComponent(wcUser.email)}` : link, '_blank');
+}
+
+window.addEventListener('load', () => setTimeout(initFirebaseAuth, 600));
+
+// ==================== GPX TRACK SYSTEM ====================
+
+let _currentSessionId = null;
+let _sdMap = null;
+let _sdTrackLayer = null;
+
+// ---- Haversine distance (km) between two lat/lon points ----
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ---- Bearing between two points (degrees) ----
+function bearing(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2-lon1)*Math.PI/180;
+  const y = Math.sin(dLon)*Math.cos(lat2*Math.PI/180);
+  const x = Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180) - Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);
+  return (Math.atan2(y,x)*180/Math.PI + 360) % 360;
+}
+
+// ---- Parse GPX XML string into array of {lat,lon,time,speed} ----
+function parseGpx(xmlStr) {
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(xmlStr, 'text/xml');
+  const trkpts = xml.querySelectorAll('trkpt');
+  if (!trkpts.length) return null;
+
+  const pts = [];
+  trkpts.forEach(pt => {
+    const lat = parseFloat(pt.getAttribute('lat'));
+    const lon = parseFloat(pt.getAttribute('lon'));
+    const timeEl = pt.querySelector('time');
+    const time = timeEl ? new Date(timeEl.textContent) : null;
+    // Speed from extensions (Garmin etc) or compute from adjacent points
+    const speedEl = pt.querySelector('speed') || pt.querySelector('Speed');
+    const speedMs = speedEl ? parseFloat(speedEl.textContent) : null;
+    if (!isNaN(lat) && !isNaN(lon)) pts.push({ lat, lon, time, speedMs });
+  });
+
+  if (pts.length < 2) return null;
+
+  // Compute speeds where not provided, using haversine
+  for (let i = 0; i < pts.length; i++) {
+    if (pts[i].speedMs === null || pts[i].speedMs === undefined) {
+      if (i > 0 && pts[i].time && pts[i-1].time) {
+        const dt = (pts[i].time - pts[i-1].time) / 1000; // seconds
+        const dk = haversine(pts[i-1].lat, pts[i-1].lon, pts[i].lat, pts[i].lon);
+        pts[i].speedMs = dt > 0 ? (dk * 1000) / dt : 0;
+      } else {
+        pts[i].speedMs = 0;
+      }
+    }
+  }
+  pts[0].speedMs = pts[1].speedMs || 0;
+  return pts;
+}
+
+// ---- Analyse GPX points into stats ----
+function analyseGpx(pts) {
+  if (!pts || pts.length < 2) return null;
+
+  // Total distance
+  let distKm = 0;
+  for (let i = 1; i < pts.length; i++) {
+    distKm += haversine(pts[i-1].lat, pts[i-1].lon, pts[i].lat, pts[i].lon);
+  }
+
+  // Speed stats (m/s → knots: × 1.94384)
+  const speeds = pts.map(p => p.speedMs * 1.94384);
+  const maxSpeedKts = Math.round(Math.max(...speeds) * 10) / 10;
+  const avgSpeedKts = Math.round(speeds.reduce((a,b)=>a+b,0)/speeds.length * 10) / 10;
+
+  // Duration
+  const durationMs = (pts[pts.length-1].time && pts[0].time) ? pts[pts.length-1].time - pts[0].time : null;
+  const durationMins = durationMs ? Math.round(durationMs / 60000) : null;
+
+  // Direction changes = tack/jibe estimation
+  // Smooth bearings first, then count changes > 70 degrees
+  const bearings = [];
+  for (let i = 1; i < pts.length; i++) {
+    bearings.push(bearing(pts[i-1].lat, pts[i-1].lon, pts[i].lat, pts[i].lon));
+  }
+
+  let tacks = 0;
+  const CHANGE_THRESHOLD = 70; // degrees
+  const MIN_POINTS_BETWEEN = 5; // avoid noise
+  let lastTackIdx = 0;
+
+  for (let i = 1; i < bearings.length; i++) {
+    if (i - lastTackIdx < MIN_POINTS_BETWEEN) continue;
+    let diff = Math.abs(bearings[i] - bearings[i-1]);
+    if (diff > 180) diff = 360 - diff;
+    if (diff > CHANGE_THRESHOLD) { tacks++; lastTackIdx = i; }
+  }
+
+  // Port vs starboard split
+  // Port = heading roughly N-E-S (0-180), Starboard = S-W-N (180-360)
+  // Simplified: port = bearing 0-180, starboard = 180-360
+  const portCount = bearings.filter(b => b < 180).length;
+  const sbCount   = bearings.length - portCount;
+  const portPct   = Math.round(portCount / bearings.length * 100);
+  const sbPct     = 100 - portPct;
+
+  // Bounding box centre
+  const lats = pts.map(p => p.lat), lons = pts.map(p => p.lon);
+  const centre = [(Math.min(...lats)+Math.max(...lats))/2, (Math.min(...lons)+Math.max(...lons))/2];
+
+  // Speed samples for chart (downsample to ~60 points)
+  const step = Math.max(1, Math.floor(pts.length / 60));
+  const speedSamples = pts.filter((_,i) => i % step === 0).map(p => Math.round(p.speedMs * 1.94384 * 10)/10);
+
+  return { distKm, maxSpeedKts, avgSpeedKts, durationMins, tacks, portPct, sbPct, centre, speedSamples,
+    startTime: pts[0].time, endTime: pts[pts.length-1].time,
+    pointCount: pts.length };
+}
+
+// ---- Attach GPX to a session (from session list) ----
+function attachGpx(sessionId) {
+  if (!wcUserPro) { openProModal(); return; }
+  _currentSessionId = sessionId;
+  document.getElementById('gpxFileInput').click();
+}
+
+// ---- Open session detail modal ----
+function openSessionDetail(sessionId) {
+  _currentSessionId = sessionId;
+  const sessions = getSessions();
+  const all = getAllLocations();
+  const s = sessions.find(x => x.id === sessionId);
+  if (!s) return;
+
+  document.getElementById('sdTitle').textContent = all[s.location]?.name || s.location;
+  document.getElementById('sdDate').textContent = s.date + (s.start ? ' · ' + s.start : '');
+  document.getElementById('sessionDetailModal').style.display = 'block';
+
+  // Session info
+  const infoEl = document.getElementById('sdInfo');
+  infoEl.innerHTML = `
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:3px;margin-bottom:12px;">SESSION INFO</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+      ${s.duration?`<div style="text-align:center;"><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--text-bright);">${fmtDur(s.duration)}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);">DURATION</div></div>`:''}
+      ${s.wind?`<div style="text-align:center;"><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:${windColor(s.wind)};">${s.wind}kts</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);">WIND${s.windDir?' '+s.windDir:''}</div></div>`:''}
+      ${s.swell?`<div style="text-align:center;"><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--sky);">${s.swell}m</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);">SWELL</div></div>`:''}
+      ${s.wing?`<div style="text-align:center;"><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--wind-green);">${s.wing}m</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);">WING</div></div>`:''}
+      ${s.rating?`<div style="text-align:center;"><div style="font-size:16px;">${'⭐'.repeat(s.rating)}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);">RATING</div></div>`:''}
+    </div>
+    ${s.notes?`<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--glass-border);font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);">${s.notes}</div>`:''}
+  `;
+
+  if (s.gpx) {
+    renderGpxDetail(s.gpx);
+  } else {
+    document.getElementById('sdNoTrack').style.display = wcUserPro ? 'block' : 'none';
+    if (!wcUserPro) {
+      document.getElementById('sdNoTrack').style.display = 'block';
+      document.getElementById('sdNoTrack').innerHTML = `
+        <div style="font-size:28px;margin-bottom:8px;">⭐</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-dim);margin-bottom:12px;">GPS track import is a Pro feature.</div>
+        <button onclick="openProModal()" style="padding:10px 24px;background:rgba(247,201,72,0.15);border:1px solid rgba(247,201,72,0.4);border-radius:8px;color:var(--wind-yellow);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;cursor:pointer;">UPGRADE TO PRO →</button>
+      `;
+    }
+    document.getElementById('sdMapWrap').style.display = 'none';
+    document.getElementById('sdGpsStats').style.display = 'none';
+    document.getElementById('sdTackStats').style.display = 'none';
+    document.getElementById('sdSpeedChartWrap').style.display = 'none';
+    document.getElementById('sdGpxActions').style.display = 'none';
+  }
+}
+
+function closeSessionDetail() {
+  document.getElementById('sessionDetailModal').style.display = 'none';
+  if (_sdMap) { _sdMap.remove(); _sdMap = null; _sdTrackLayer = null; }
+}
+
+// ---- Open track view directly from session card ----
+function openTrackView(sessionId) {
+  openSessionDetail(sessionId);
+}
+
+// ---- Render GPX detail into the modal ----
+function renderGpxDetail(gpx) {
+  document.getElementById('sdNoTrack').style.display = 'none';
+  document.getElementById('sdGpxActions').style.display = 'flex';
+
+  // Map
+  document.getElementById('sdMapWrap').style.display = 'block';
+  setTimeout(() => {
+    if (_sdMap) { _sdMap.remove(); _sdMap = null; }
+    _sdMap = L.map('sdMap', { zoomControl: true, attributionControl: false });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 18 }).addTo(_sdMap);
+
+    if (gpx.points && gpx.points.length > 1) {
+      // Colour track by speed
+      const maxSpd = gpx.stats.maxSpeedKts || 1;
+      for (let i = 1; i < gpx.points.length; i++) {
+        const spd = (gpx.points[i].speedMs || 0) * 1.94384;
+        const ratio = Math.min(spd / maxSpd, 1);
+        // Green (slow) → Yellow → Red (fast)
+        const r = Math.round(ratio > 0.5 ? 255 : ratio * 2 * 255);
+        const g = Math.round(ratio > 0.5 ? (1 - (ratio-0.5)*2) * 255 : 229);
+        const color = `rgb(${r},${g},50)`;
+        L.polyline([[gpx.points[i-1].lat, gpx.points[i-1].lon],[gpx.points[i].lat, gpx.points[i].lon]],
+          { color, weight: 3, opacity: 0.85 }).addTo(_sdMap);
+      }
+      // Start/end markers
+      const first = gpx.points[0], last = gpx.points[gpx.points.length-1];
+      L.circleMarker([first.lat, first.lon], { radius:7, color:'#00e5a0', fillColor:'#00e5a0', fillOpacity:1, weight:2 }).bindPopup('START').addTo(_sdMap);
+      L.circleMarker([last.lat,  last.lon],  { radius:7, color:'#ff3b5c', fillColor:'#ff3b5c', fillOpacity:1, weight:2 }).bindPopup('FINISH').addTo(_sdMap);
+      _sdMap.fitBounds(gpx.points.map(p => [p.lat, p.lon]), { padding: [20,20] });
+    } else {
+      _sdMap.setView(gpx.stats.centre || [51, 0], 13);
+    }
+  }, 100);
+
+  // Stats grid
+  const st = gpx.stats;
+  document.getElementById('sdGpsStats').style.display = 'block';
+  document.getElementById('sdStatsGrid').innerHTML = [
+    { val: st.distKm.toFixed(2)+'km', lbl: 'DISTANCE' },
+    { val: st.maxSpeedKts+'kts', lbl: 'MAX SPEED', col: 'var(--wind-yellow)' },
+    { val: st.avgSpeedKts+'kts', lbl: 'AVG SPEED', col: 'var(--sky)' },
+    { val: st.durationMins ? (Math.floor(st.durationMins/60)+'h '+(st.durationMins%60)+'m') : '—', lbl: 'MOVING TIME' },
+    { val: st.tacks, lbl: 'DIR CHANGES', col: 'var(--wind-green)' },
+    { val: st.pointCount, lbl: 'GPS POINTS', col: 'var(--text-dim)' },
+  ].map(x=>`<div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:10px;padding:12px;text-align:center;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${x.col||'var(--text-bright)'};">${x.val}</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:1px;">${x.lbl}</div>
+  </div>`).join('');
+
+  // Tack / direction stats
+  document.getElementById('sdTackStats').style.display = 'block';
+  document.getElementById('sdTackContent').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);letter-spacing:2px;margin-bottom:8px;">DIRECTION CHANGES</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:48px;color:var(--wind-green);line-height:1;">${st.tacks}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);">Turns > 70° detected</div>
+      </div>
+      <div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);letter-spacing:2px;margin-bottom:8px;">PORT / STARBOARD</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <div style="flex:${st.portPct};height:14px;background:rgba(91,196,245,0.6);border-radius:3px 0 0 3px;"></div>
+          <div style="flex:${st.sbPct};height:14px;background:rgba(255,140,66,0.6);border-radius:0 3px 3px 0;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-family:'Barlow Condensed',sans-serif;font-size:12px;">
+          <span style="color:var(--sky);">PORT ${st.portPct}%</span>
+          <span style="color:var(--wind-orange);">STBD ${st.sbPct}%</span>
+        </div>
+      </div>
+    </div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:1px;padding-top:10px;border-top:1px solid var(--glass-border);">
+      ℹ Direction changes > 70° counted as tacks/jibes. Port = heading 0–180°, Starboard = 180–360°.
+    </div>
+  `;
+
+  // Speed chart
+  if (st.speedSamples && st.speedSamples.length > 1) {
+    document.getElementById('sdSpeedChartWrap').style.display = 'block';
+    const canvas = document.getElementById('sdSpeedChart');
+    const ctx = canvas.getContext('2d');
+    canvas.width = canvas.offsetWidth || 400;
+    canvas.height = 80;
+    const samples = st.speedSamples;
+    const maxS = Math.max(...samples, 1);
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Fill gradient
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(0,229,160,0.4)');
+    grad.addColorStop(1, 'rgba(0,229,160,0.02)');
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    samples.forEach((s, i) => { const x = (i/(samples.length-1))*w; const y = h - (s/maxS)*(h-6); ctx.lineTo(x, y); });
+    ctx.lineTo(w, h);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Line
+    ctx.beginPath();
+    ctx.strokeStyle = 'var(--wind-green)';
+    ctx.lineWidth = 2;
+    samples.forEach((s, i) => { const x = (i/(samples.length-1))*w; const y = h - (s/maxS)*(h-6); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
+    ctx.stroke();
+
+    // Max speed annotation
+    const maxIdx = samples.indexOf(Math.max(...samples));
+    const mx = (maxIdx/(samples.length-1))*w, my = h - (samples[maxIdx]/maxS)*(h-6);
+    ctx.fillStyle = 'var(--wind-yellow)';
+    ctx.beginPath(); ctx.arc(mx, my, 4, 0, Math.PI*2); ctx.fill();
+
+    if (st.startTime) document.getElementById('sdChartStart').textContent = new Date(st.startTime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    if (st.endTime)   document.getElementById('sdChartEnd').textContent   = new Date(st.endTime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  }
+}
+
+// ---- Trigger GPX file picker ----
+function triggerGpxUpload() {
+  if (!wcUserPro) { openProModal(); return; }
+  document.getElementById('gpxFileInput').click();
+}
+
+function removeGpx() {
+  if (!confirm('Remove GPS track from this session?')) return;
+  const sessions = getSessions();
+  const idx = sessions.findIndex(s => s.id === _currentSessionId);
+  if (idx < 0) return;
+  delete sessions[idx].gpx;
+  saveSessions(sessions);
+  closeSessionDetail();
+  renderSessions();
+}
+
+// ---- Handle GPX file selected ----
+function handleGpxFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const pts = parseGpx(e.target.result);
+    if (!pts) { alert('Could not read GPX file — please check the file is valid.'); return; }
+    const stats = analyseGpx(pts);
+    if (!stats) { alert('GPX file appears to have no track data.'); return; }
+
+    // Store compact version — store every Nth point to save space
+    const step = Math.max(1, Math.floor(pts.length / 500)); // max ~500 points stored
+    const storedPts = pts.filter((_,i) => i % step === 0).map(p => ({ lat: +p.lat.toFixed(6), lon: +p.lon.toFixed(6), speedMs: +(p.speedMs||0).toFixed(2) }));
+
+    const gpxData = { points: storedPts, stats };
+
+    const sessions = getSessions();
+    const idx = sessions.findIndex(s => s.id === _currentSessionId);
+    if (idx < 0) { alert('Session not found.'); return; }
+    sessions[idx].gpx = gpxData;
+    saveSessions(sessions);
+    renderSessions();
+
+    // If detail modal is open, refresh it
+    if (document.getElementById('sessionDetailModal').style.display !== 'none') {
+      if (_sdMap) { _sdMap.remove(); _sdMap = null; }
+      renderGpxDetail(gpxData);
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
 </script>
 </body>
 </html>
