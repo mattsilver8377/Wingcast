@@ -913,6 +913,31 @@
   <span>👁️</span><span id="watchersText"></span>
 </div>
 
+<!-- ====== SPOT SOCIAL WIDGET ====== -->
+<div id="spotSocialWidget" style="margin:0 16px 12px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;">
+  <!-- Action buttons row -->
+  <div style="display:flex;border-bottom:1px solid var(--glass-border);">
+    <button onclick="handleCheckIn()" id="checkInBtn" style="flex:1;padding:11px 8px;background:none;border:none;border-right:1px solid var(--glass-border);color:var(--text-dim);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+      <span>👥</span><span id="checkInBtnText">CHECK IN</span>
+    </button>
+    <button onclick="handleRateConditions()" style="flex:1;padding:11px 8px;background:none;border:none;border-right:1px solid var(--glass-border);color:var(--text-dim);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+      <span>⭐</span><span>RATE</span>
+    </button>
+    <button onclick="handleShare()" style="flex:1;padding:11px 8px;background:none;border:none;color:var(--text-dim);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+      <span>📤</span><span>SHARE</span>
+    </button>
+  </div>
+  <!-- Live status -->
+  <div id="spotLiveStatus" style="padding:10px 14px;">
+    <div id="checkInCount" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);letter-spacing:1px;">Loading...</div>
+  </div>
+  <!-- Condition reports -->
+  <div id="conditionReports" style="display:none;border-top:1px solid var(--glass-border);padding:10px 14px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:2px;margin-bottom:8px;">RECENT REPORTS (24HRS)</div>
+    <div id="conditionReportsList"></div>
+  </div>
+</div>
+
 <div class="info-bar" id="offshoreInfoBar">
   <span>⚠️</span>
   <span id="offshoreInfoText">Offshore winds = DANGEROUS — always check direction before launching.</span>
@@ -1278,6 +1303,16 @@
           <div id="aiSummaryThumb" style="width:18px;height:18px;border-radius:50%;background:var(--wind-green);position:absolute;top:2px;left:22px;transition:left 0.2s;"></div>
         </div>
         <span id="aiSummaryToggleLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);">ON — shown on forecast</span>
+      </div>
+    </div>
+    <!-- Anonymous posting -->
+    <div style="margin-bottom:20px;">
+      <label class="profile-label">CONDITION REPORTS</label>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+        <div onclick="toggleAnonymous()" id="anonToggle" style="width:44px;height:24px;border-radius:12px;background:rgba(91,196,245,0.2);border:1px solid rgba(91,196,245,0.4);cursor:pointer;position:relative;transition:all 0.2s;">
+          <div id="anonToggleThumb" style="width:18px;height:18px;border-radius:50%;background:var(--sky);position:absolute;top:2px;left:4px;transition:left 0.2s;"></div>
+        </div>
+        <span id="anonToggleLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);">POST ANONYMOUSLY — name hidden</span>
       </div>
     </div>
     <!-- Wind alerts -->
@@ -3518,6 +3553,7 @@ function openSettings() {
   const th=document.getElementById('aiSummaryThumb'); if(th) th.style.left=on?'22px':'3px';
   const tg=document.getElementById('aiSummaryToggle'); if(tg) tg.style.background=on?'rgba(0,229,160,0.2)':'rgba(255,59,92,0.15)';
   const lb=document.getElementById('aiSummaryToggleLabel'); if(lb) lb.textContent=on?'ON — shown on forecast':'OFF — hidden';
+  if (typeof updateAnonToggle === 'function') updateAnonToggle();
 }
 function closeSettings() { closeModal('settingsModal'); }
 
@@ -4940,6 +4976,365 @@ function handleGpxFile(event) {
   };
   reader.readAsText(file);
 }
+</script>
+
+<!-- ====== RATE CONDITIONS MODAL ====== -->
+<div id="rateModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.85);z-index:2000;align-items:flex-end;justify-content:center;">
+  <div style="width:100%;max-width:520px;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px 16px 0 0;padding:22px 22px 36px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--wind-green);letter-spacing:2px;">RATE CONDITIONS</div>
+      <button onclick="closeRateModal()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div id="rateSpotName" style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-muted);letter-spacing:2px;margin-bottom:16px;"></div>
+    <div style="margin-bottom:18px;">
+      <label class="profile-label">HOW ARE CONDITIONS RIGHT NOW?</label>
+      <div style="display:flex;gap:8px;margin-top:10px;" id="rateStarRow">
+        <button onclick="setRateStars(1)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
+        <button onclick="setRateStars(2)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
+        <button onclick="setRateStars(3)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
+        <button onclick="setRateStars(4)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
+        <button onclick="setRateStars(5)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
+      </div>
+      <div id="rateStarLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);text-align:center;margin-top:8px;letter-spacing:1px;">Tap to rate</div>
+    </div>
+    <div style="margin-bottom:18px;">
+      <label class="profile-label">ADD A COMMENT (OPTIONAL)</label>
+      <textarea id="rateComment" rows="2" placeholder="e.g. Wind picking up nicely, choppier than forecast..." class="profile-input" style="resize:none;margin-top:6px;"></textarea>
+    </div>
+    <button onclick="submitRating()" id="rateSubmitBtn" style="width:100%;padding:13px;background:linear-gradient(135deg,rgba(0,229,160,0.2),rgba(91,196,245,0.1));border:1px solid rgba(0,229,160,0.4);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;">POST REPORT</button>
+  </div>
+</div>
+
+<!-- ====== SHARE FORECAST MODAL ====== -->
+<div id="shareModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.85);z-index:2000;align-items:flex-end;justify-content:center;">
+  <div style="width:100%;max-width:520px;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px 16px 0 0;padding:22px 22px 36px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--sky);letter-spacing:2px;">SHARE FORECAST</div>
+      <button onclick="closeShareModal()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div id="shareCard" style="border-radius:12px;overflow:hidden;margin-bottom:18px;border:1px solid var(--glass-border);"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <button onclick="shareToWhatsApp()" style="padding:12px;background:rgba(37,211,102,0.12);border:1px solid rgba(37,211,102,0.3);border-radius:10px;color:#25d366;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;">📱 WHATSAPP</button>
+      <button onclick="copyShareLink()" style="padding:12px;background:rgba(91,196,245,0.12);border:1px solid rgba(91,196,245,0.3);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;">🔗 COPY LINK</button>
+      <button onclick="shareNative()" style="padding:12px;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.2);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;grid-column:span 2;">📤 SHARE VIA PHONE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== ONBOARDING MODAL ====== -->
+<div id="onboardingModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.97);z-index:2500;overflow-y:auto;padding:20px;">
+  <div style="max-width:420px;margin:0 auto;padding-bottom:40px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="font-size:48px;margin-bottom:12px;">🤙</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--wind-green);letter-spacing:3px;">QUICK SETUP</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-dim);margin-top:6px;">Takes 30 seconds — makes WingCast way more useful</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label class="profile-label">YOUR NAME</label>
+        <input id="obName" type="text" placeholder="What do people call you?" class="profile-input">
+      </div>
+      <div>
+        <label class="profile-label">YOUR WEIGHT (KG)</label>
+        <input id="obWeight" type="number" placeholder="e.g. 85" class="profile-input">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);margin-top:4px;">Used for wing size recommendations</div>
+      </div>
+      <div>
+        <label class="profile-label">YOUR HOME SPOT</label>
+        <select id="obHomeSpot" class="profile-select"></select>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);margin-top:4px;">We'll show this spot first every time</div>
+      </div>
+      <button onclick="saveOnboarding()" style="padding:14px;background:linear-gradient(135deg,rgba(0,229,160,0.25),rgba(91,196,245,0.15));border:1px solid rgba(0,229,160,0.4);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;margin-top:4px;">LET'S GO 🤙</button>
+      <button onclick="closeOnboardingModal()" style="background:none;border:none;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:12px;cursor:pointer;letter-spacing:1px;">SKIP FOR NOW</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== SPOT SOCIAL SYSTEM ====================
+let _socialUnsubscribe = null;
+
+function loadSpotSocial(spotKey) {
+  if (!spotKey || !_fbDb) { renderSpotSocialOffline(); return; }
+  if (_socialUnsubscribe) { _socialUnsubscribe(); _socialUnsubscribe = null; }
+  const now = new Date();
+  const cutoff3h  = new Date(now - 3 * 60 * 60 * 1000);
+  const cutoff24h = new Date(now - 24 * 60 * 60 * 1000);
+  _socialUnsubscribe = _fbDb.collection('checkins')
+    .where('spotKey', '==', spotKey)
+    .where('time', '>', cutoff3h)
+    .onSnapshot(snap => {
+      const checkins = snap.docs.map(d => d.data());
+      _fbDb.collection('reports').where('spotKey', '==', spotKey)
+        .where('time', '>', cutoff24h)
+        .orderBy('time', 'desc').limit(5).get()
+        .then(rs => renderSpotSocial(checkins, rs.docs.map(d => d.data()), spotKey))
+        .catch(() => renderSpotSocial(checkins, [], spotKey));
+    }, () => renderSpotSocialOffline());
+}
+
+function renderSpotSocialOffline() {
+  const el = document.getElementById('checkInCount');
+  if (el) el.innerHTML = `<span style="color:var(--text-muted);">Sign in to see who's at this spot</span>`;
+  const r = document.getElementById('conditionReports');
+  if (r) r.style.display = 'none';
+}
+
+function renderSpotSocial(checkins, reports, spotKey) {
+  const countEl = document.getElementById('checkInCount');
+  const reportsEl = document.getElementById('conditionReports');
+  const listEl = document.getElementById('conditionReportsList');
+  const checkInBtn = document.getElementById('checkInBtn');
+  const checkInBtnText = document.getElementById('checkInBtnText');
+  const count = checkins.length;
+  const myCheckIn = wcUser ? checkins.find(c => c.uid === wcUser.uid) : null;
+
+  if (countEl) {
+    if (count === 0) {
+      countEl.innerHTML = `<span style="color:var(--text-muted);">No riders checked in · Be the first!</span>`;
+    } else {
+      const names = checkins.slice(0,3).map(c => c.anonymous ? 'Rider' : (c.name || 'Rider')).join(', ');
+      const extra = count > 3 ? ` +${count-3} more` : '';
+      countEl.innerHTML = `<span style="color:var(--wind-green);font-weight:700;">${count} rider${count>1?'s':''} here now</span> <span style="color:var(--text-muted);">· ${names}${extra}</span>`;
+    }
+  }
+  if (checkInBtnText) checkInBtnText.textContent = myCheckIn ? 'CHECKED IN ✓' : 'CHECK IN';
+  if (checkInBtn) checkInBtn.style.color = myCheckIn ? 'var(--wind-green)' : 'var(--text-dim)';
+
+  if (reports.length > 0 && reportsEl && listEl) {
+    reportsEl.style.display = 'block';
+    listEl.innerHTML = reports.map(r => {
+      const stars = '⭐'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+      const ago = timeAgo(r.time?.toDate ? r.time.toDate() : new Date(r.time));
+      const name = r.anonymous ? 'Anonymous' : (r.name || 'Rider');
+      return `<div style="padding:8px 0;border-bottom:1px solid var(--glass-border);">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:13px;">${stars}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);">${name} · ${ago}</span>
+        </div>
+        ${r.comment ? `<div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);margin-top:3px;">"${r.comment}"</div>` : ''}
+      </div>`;
+    }).join('');
+    if (listEl.lastElementChild) listEl.lastElementChild.style.borderBottom = 'none';
+  } else if (reportsEl) {
+    reportsEl.style.display = 'none';
+  }
+}
+
+function timeAgo(date) {
+  const mins = Math.round((new Date() - date) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  return `${Math.floor(mins/60)}h ago`;
+}
+
+async function handleCheckIn() {
+  if (!wcUser) { openAuthModal(); return; }
+  if (!_fbDb) return;
+  const spotKey = currentLocation;
+  const myDocId = `${spotKey}_${wcUser.uid}`;
+  const cutoff3h = new Date(new Date() - 3 * 60 * 60 * 1000);
+  try {
+    const existing = await _fbDb.collection('checkins').doc(myDocId).get();
+    if (existing.exists && existing.data().time?.toDate() > cutoff3h) {
+      await _fbDb.collection('checkins').doc(myDocId).delete();
+      showToast('👋 Checked out — hope it was a good session!');
+    } else {
+      await _fbDb.collection('checkins').doc(myDocId).set({
+        uid: wcUser.uid, spotKey,
+        name: profile.name || wcUser.displayName || '',
+        anonymous: profile.postAnonymous === true,
+        time: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      showToast('👥 Checked in! Others can see you\'re here.');
+      setTimeout(async () => { try { await _fbDb.collection('checkins').doc(myDocId).delete(); } catch(e) {} }, 3 * 60 * 60 * 1000);
+    }
+  } catch(e) { console.warn('[WingCast] Check-in error:', e.message); }
+}
+
+function handleRateConditions() {
+  if (!wcUser) { openAuthModal(); return; }
+  openRateModal();
+}
+
+function handleShare() { openShareModal(); }
+
+function showToast(msg) {
+  let t = document.getElementById('wcToast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'wcToast';
+    t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(4,13,26,0.95);border:1px solid var(--glass-border);border-radius:10px;padding:10px 18px;font-family:\'Barlow Condensed\',sans-serif;font-size:14px;color:var(--text-bright);letter-spacing:1px;z-index:9999;white-space:nowrap;transition:opacity 0.3s;pointer-events:none;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg; t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+
+// Hook into location change
+const _origChangeLocation = window.changeLocation;
+window.changeLocation = function() {
+  if (_origChangeLocation) _origChangeLocation();
+  setTimeout(() => loadSpotSocial(currentLocation), 400);
+};
+
+window.addEventListener('load', () => setTimeout(() => { if (currentLocation) loadSpotSocial(currentLocation); }, 2500));
+
+// ---- Anonymous toggle ----
+function toggleAnonymous() {
+  profile.postAnonymous = !profile.postAnonymous;
+  _store.set('wc_profile', JSON.stringify(profile));
+  updateAnonToggle();
+}
+function updateAnonToggle() {
+  const on = profile.postAnonymous === true;
+  const tog = document.getElementById('anonToggle');
+  const thumb = document.getElementById('anonToggleThumb');
+  const lbl = document.getElementById('anonToggleLabel');
+  if (tog) tog.style.background = on ? 'rgba(91,196,245,0.2)' : 'rgba(255,59,92,0.15)';
+  if (thumb) thumb.style.left = on ? '22px' : '4px';
+  if (lbl) lbl.textContent = on ? 'POST ANONYMOUSLY — name hidden' : 'POST WITH NAME — visible to others';
+}
+
+// ==================== RATE CONDITIONS ====================
+let _rateStars = 0;
+const STAR_LABELS = ['','😬 Terrible','😐 Poor','🙂 OK','😃 Good','🤩 Epic!'];
+
+function openRateModal() {
+  _rateStars = 0;
+  document.getElementById('rateComment').value = '';
+  document.getElementById('rateStarLabel').textContent = 'Tap to rate';
+  document.querySelectorAll('#rateStarRow button').forEach(b => { b.style.background='rgba(247,201,72,0.08)'; b.style.borderColor='rgba(247,201,72,0.2)'; });
+  const loc = getAllLocations()[currentLocation];
+  document.getElementById('rateSpotName').textContent = (loc?.name || currentLocation).toUpperCase();
+  document.getElementById('rateModal').style.display = 'flex';
+}
+function closeRateModal() { document.getElementById('rateModal').style.display = 'none'; }
+
+function setRateStars(n) {
+  _rateStars = n;
+  document.querySelectorAll('#rateStarRow button').forEach((b, i) => {
+    b.style.background = i < n ? 'rgba(247,201,72,0.3)' : 'rgba(247,201,72,0.08)';
+    b.style.borderColor = i < n ? 'rgba(247,201,72,0.6)' : 'rgba(247,201,72,0.2)';
+  });
+  document.getElementById('rateStarLabel').textContent = STAR_LABELS[n] || '';
+}
+
+async function submitRating() {
+  if (!_rateStars) { showToast('⭐ Please tap a star first'); return; }
+  if (!wcUser || !_fbDb) return;
+  const btn = document.getElementById('rateSubmitBtn');
+  btn.textContent = 'POSTING...'; btn.disabled = true;
+  try {
+    await _fbDb.collection('reports').add({
+      uid: wcUser.uid, spotKey: currentLocation, rating: _rateStars,
+      comment: document.getElementById('rateComment').value.trim(),
+      name: profile.postAnonymous ? '' : (profile.name || wcUser.displayName || ''),
+      anonymous: profile.postAnonymous === true,
+      time: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    closeRateModal();
+    showToast('✓ Conditions report posted — thanks!');
+    loadSpotSocial(currentLocation);
+  } catch(e) {
+    showToast('⚠ Could not post — try again');
+  } finally { btn.textContent = 'POST REPORT'; btn.disabled = false; }
+}
+
+// ==================== SHARE FORECAST ====================
+function openShareModal() { buildShareCard(); document.getElementById('shareModal').style.display = 'flex'; }
+function closeShareModal() { document.getElementById('shareModal').style.display = 'none'; }
+
+function buildShareCard() {
+  const loc = getAllLocations()[currentLocation];
+  const locName = loc?.name || currentLocation;
+  if (!weekData.length || !weekData[0].hours) return;
+  const now = weekData[0].hours[3]; if (!now) return;
+  const cond = getWingCondition(now.wind, now.gust, now.swell, now.dir, currentLocation);
+  const cols = { epic:'#00e5a0', good:'#5bc4f5', marginal:'#f7c948', poor:'#ff3b5c' };
+  const col = cols[cond.cls] || '#5bc4f5';
+  const dateStr = new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'});
+  const wing = recommendWing(now.wind);
+  document.getElementById('shareCard').innerHTML = `
+    <div style="background:linear-gradient(135deg,#040d1a,#071e38);padding:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#e8f4ff;letter-spacing:2px;">${locName.toUpperCase()}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:#3a6a8a;letter-spacing:1px;">${dateStr.toUpperCase()}</div></div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:${col};letter-spacing:2px;">${cond.label}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
+        ${[['WIND',cvtWind(now.wind),unitLabel(windUnit),col],['GUSTS',cvtWind(now.gust),unitLabel(windUnit),'#f7c948'],['SWELL',now.swell,'M','#5bc4f5'],['DIR',now.dir,'','#5bc4f5']]
+          .map(([lbl,val,unit,c])=>`<div style="text-align:center;background:rgba(255,255,255,0.05);border-radius:8px;padding:10px;">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:${c};">${val}</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:9px;color:#3a6a8a;letter-spacing:1px;">${lbl}</div>
+          </div>`).join('')}
+      </div>
+      ${wing?`<div style="text-align:center;padding:8px;background:rgba(0,229,160,0.1);border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#00e5a0;letter-spacing:1px;">🪁 ${wing.size}m wing recommended</div>`:''}
+      <div style="text-align:center;margin-top:12px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:#3a6a8a;letter-spacing:2px;">WINGCAST — WINGFOIL FORECAST</div>
+    </div>`;
+}
+
+function shareToWhatsApp() {
+  const loc = getAllLocations()[currentLocation];
+  if (!weekData.length || !weekData[0].hours) return;
+  const now = weekData[0].hours[3];
+  const cond = getWingCondition(now.wind, now.gust, now.swell, now.dir, currentLocation);
+  const text = `🏄 ${loc?.name||currentLocation} — ${cond.label} today!\n💨 ${cvtWind(now.wind)}${unitLabel(windUnit)} ${now.dir} (gusts ${cvtWind(now.gust)})\n🌊 Swell: ${now.swell}m\n📱 WingCast: https://mattsilver8377.github.io/`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+}
+function copyShareLink() {
+  navigator.clipboard.writeText('https://mattsilver8377.github.io/').then(() => showToast('✓ Link copied!'));
+}
+async function shareNative() {
+  const loc = getAllLocations()[currentLocation];
+  if (!weekData.length || !weekData[0].hours) return;
+  const now = weekData[0].hours[3];
+  const cond = getWingCondition(now.wind, now.gust, now.swell, now.dir, currentLocation);
+  if (navigator.share) {
+    await navigator.share({ title:`${loc?.name||currentLocation} — ${cond.label} | WingCast`, text:`${cond.label} at ${loc?.name||currentLocation}! ${cvtWind(now.wind)}${unitLabel(windUnit)} ${now.dir}`, url:'https://mattsilver8377.github.io/' });
+  } else { copyShareLink(); }
+}
+
+// ==================== ONBOARDING ====================
+function checkOnboardingComplete() {
+  if (!profile.onboardingDone && profile.tutorialDone) setTimeout(openOnboardingModal, 600);
+}
+function openOnboardingModal() {
+  const sel = document.getElementById('obHomeSpot');
+  if (sel) {
+    const all = getAllLocations();
+    sel.innerHTML = '<option value="">— select your home spot —</option>' +
+      Object.entries(all).map(([k,v])=>`<option value="${k}"${profile.homeSpot===k?' selected':''}>${v.name}</option>`).join('');
+  }
+  const n = document.getElementById('obName'), w = document.getElementById('obWeight');
+  if (n && profile.name) n.value = profile.name;
+  if (w && profile.weight) w.value = profile.weight;
+  document.getElementById('onboardingModal').style.display = 'block';
+}
+function closeOnboardingModal() {
+  profile.onboardingDone = true;
+  _store.set('wc_profile', JSON.stringify(profile));
+  document.getElementById('onboardingModal').style.display = 'none';
+  if (!wcUser) setTimeout(() => openAuthModal(), 400);
+}
+function saveOnboarding() {
+  const name = document.getElementById('obName').value.trim();
+  const weight = document.getElementById('obWeight').value;
+  const spot = document.getElementById('obHomeSpot').value;
+  if (name) { profile.name = name; const p = document.getElementById('pName'); if(p) p.value = name; }
+  if (weight) { profile.weight = weight; const p = document.getElementById('pWeight'); if(p) p.value = weight; }
+  if (spot) { profile.homeSpot = spot; }
+  _store.set('wc_profile', JSON.stringify(profile));
+  closeOnboardingModal();
+  showToast('✓ Profile saved — welcome to WingCast! 🤙');
+}
+
+// Hook skipTutorial to trigger onboarding
+const _origSkipTutorial = window.skipTutorial;
+window.skipTutorial = function() {
+  if (_origSkipTutorial) _origSkipTutorial();
+  setTimeout(checkOnboardingComplete, 400);
+};
 </script>
 </body>
 </html>
