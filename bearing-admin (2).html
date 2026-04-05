@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>WingCast — Beach Bearing Admin</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#040d1a;--mid:#071e38;--surface:#0a2d52;
+    --border:rgba(91,196,245,0.2);
+    --green:#00e5a0;--sky:#5bc4f5;--yellow:#f7c948;
+    --red:#ff3b5c;--text:#e8f4ff;--muted:#7ab3d4;--dim:#3a6a8a;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Barlow Condensed',sans-serif;}
+  .app{display:flex;flex-direction:column;height:100vh;}
+
+  /* Header */
+  .hdr{background:var(--mid);border-bottom:1px solid var(--border);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .hdr-title{font-family:'Bebas Neue';font-size:18px;color:var(--green);letter-spacing:2px;flex:1;}
+  .hdr-prog{font-size:12px;color:var(--muted);letter-spacing:1px;white-space:nowrap;}
+  .prog-bar{height:3px;background:var(--surface);border-radius:2px;margin-top:3px;}
+  .prog-fill{height:100%;background:var(--green);border-radius:2px;transition:width 0.3s;width:0%;}
+
+  /* Map */
+  #map{flex:1;min-height:150px;background:#0a2d52;}
+
+  /* Controls */
+  .controls{flex-shrink:0;background:var(--mid);border-top:1px solid var(--border);padding:10px 14px;display:flex;flex-direction:column;gap:8px;}
+
+  .spot-name{font-family:'Bebas Neue';font-size:20px;color:var(--text);letter-spacing:2px;line-height:1;}
+  .spot-num{font-size:11px;color:var(--dim);letter-spacing:2px;}
+
+  .bearing-row{display:flex;align-items:center;gap:14px;}
+
+  /* Compass */
+  .compass-wrap{position:relative;width:96px;height:96px;flex-shrink:0;cursor:grab;touch-action:none;}
+  .compass-wrap:active{cursor:grabbing;}
+  .compass-wrap svg{width:100%;height:100%;}
+
+  .bearing-info{flex:1;}
+  .bearing-deg{font-family:'Bebas Neue';font-size:48px;color:var(--green);line-height:1;letter-spacing:2px;}
+  .bearing-card{font-size:12px;color:var(--muted);letter-spacing:1px;margin-top:2px;}
+
+  .key-row{display:flex;gap:10px;margin-top:4px;}
+  .key-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);}
+  .key-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+  /* Slider */
+  .slider-row{display:flex;align-items:center;gap:8px;}
+  .slider-lbl{font-size:10px;color:var(--dim);white-space:nowrap;}
+  input[type=range]{flex:1;-webkit-appearance:none;height:4px;background:var(--surface);border-radius:2px;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;border-radius:50%;background:var(--green);border:2px solid var(--bg);cursor:pointer;}
+
+  /* Dir chips */
+  .dirs-row{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;}
+  .dir-chip{padding:3px 1px;border-radius:4px;font-size:9px;font-weight:700;text-align:center;border:1px solid transparent;}
+  .dir-offshore{background:rgba(255,59,92,0.2);border-color:rgba(255,59,92,0.4);color:var(--red);}
+  .dir-onshore{background:rgba(91,196,245,0.15);border-color:rgba(91,196,245,0.3);color:var(--sky);}
+  .dir-cross{background:rgba(0,229,160,0.1);border-color:rgba(0,229,160,0.25);color:var(--green);}
+
+  /* Buttons */
+  .nav-row{display:flex;gap:8px;}
+  .btn{flex:1;padding:11px 8px;border-radius:10px;font-family:'Barlow Condensed';font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;border:1px solid;transition:all 0.15s;}
+  .btn-prev{background:rgba(91,196,245,0.08);border-color:rgba(91,196,245,0.25);color:var(--sky);}
+  .btn-save{background:rgba(0,229,160,0.15);border-color:rgba(0,229,160,0.4);color:var(--green);flex:2;}
+  .btn-skip{background:rgba(91,196,245,0.08);border-color:rgba(91,196,245,0.25);color:var(--sky);}
+
+  /* Toast */
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--mid);border:1px solid var(--green);border-radius:10px;padding:10px 20px;font-family:'Barlow Condensed';font-size:14px;color:var(--green);z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;}
+  .toast.show{opacity:1;}
+
+  /* Export */
+  .export-overlay{display:none;position:fixed;inset:0;background:rgba(4,13,26,0.97);z-index:2000;padding:16px;flex-direction:column;gap:10px;}
+  .export-overlay.open{display:flex;}
+  .export-overlay h2{font-family:'Bebas Neue';font-size:22px;color:var(--green);letter-spacing:2px;}
+  .export-overlay p{font-size:13px;color:var(--muted);}
+  .export-overlay textarea{flex:1;background:var(--mid);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:monospace;font-size:11px;padding:10px;resize:none;outline:none;}
+  .export-btns{display:flex;gap:8px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="hdr">
+    <div style="flex:1;">
+      <div class="hdr-title">⛵ BEACH BEARINGS</div>
+      <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+    </div>
+    <div class="hdr-prog" id="progText">0 / 60</div>
+    <button class="btn" style="flex:none;padding:7px 12px;font-size:12px;background:rgba(247,201,72,0.1);border-color:rgba(247,201,72,0.3);color:var(--yellow);" onclick="showExport()">📋 EXPORT</button>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="controls">
+    <div>
+      <div class="spot-num" id="spotNum">SPOT 1 OF 60</div>
+      <div class="spot-name" id="spotName">Loading...</div>
+    </div>
+
+    <div class="bearing-row">
+      <div class="compass-wrap" id="compassEl">
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="48" fill="rgba(7,30,56,0.95)" stroke="rgba(91,196,245,0.3)" stroke-width="1.5"/>
+          <g id="ticks"></g>
+          <text x="50" y="11" text-anchor="middle" fill="#e8f4ff" font-family="Bebas Neue" font-size="9">N</text>
+          <text x="92" y="53" text-anchor="middle" fill="#7ab3d4" font-family="Bebas Neue" font-size="8">E</text>
+          <text x="50" y="95" text-anchor="middle" fill="#7ab3d4" font-family="Bebas Neue" font-size="8">S</text>
+          <text x="8" y="53" text-anchor="middle" fill="#7ab3d4" font-family="Bebas Neue" font-size="8">W</text>
+          <g id="arrowGrp" transform="rotate(160,50,50)">
+            <line x1="50" y1="50" x2="50" y2="16" stroke="#00e5a0" stroke-width="3" stroke-linecap="round"/>
+            <polygon points="50,9 44,21 56,21" fill="#00e5a0"/>
+            <text x="50" y="33" text-anchor="middle" fill="#00e5a0" font-family="Barlow Condensed" font-size="6">WATER</text>
+            <line x1="50" y1="50" x2="50" y2="84" stroke="rgba(255,59,92,0.5)" stroke-width="1.5" stroke-dasharray="4,3"/>
+            <text x="50" y="93" text-anchor="middle" fill="rgba(255,59,92,0.6)" font-family="Barlow Condensed" font-size="6">LAND</text>
+          </g>
+          <circle cx="50" cy="50" r="4" fill="#5bc4f5"/>
+        </svg>
+      </div>
+      <div class="bearing-info">
+        <div class="bearing-deg" id="bearingDeg">160°</div>
+        <div class="bearing-card" id="bearingCard">SSE — WATER TO SSE</div>
+        <div class="key-row">
+          <div class="key-item"><div class="key-dot" style="background:var(--green)"></div>Cross</div>
+          <div class="key-item"><div class="key-dot" style="background:var(--sky)"></div>On</div>
+          <div class="key-item"><div class="key-dot" style="background:var(--red)"></div>Off⚠</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="slider-row">
+      <span class="slider-lbl">0°</span>
+      <input type="range" id="bearingSlider" min="0" max="359" value="160" oninput="setBearing(parseInt(this.value),false)">
+      <span class="slider-lbl">359°</span>
+    </div>
+
+    <div class="dirs-row" id="dirsGrid"></div>
+
+    <div class="nav-row">
+      <button class="btn btn-prev" onclick="prevSpot()">← PREV</button>
+      <button class="btn btn-save" onclick="saveAndNext()">✓ SAVE & NEXT</button>
+      <button class="btn btn-skip" onclick="nextSpot()">SKIP</button>
+    </div>
+  </div>
+</div>
+
+<div class="export-overlay" id="exportOverlay">
+  <h2>📋 CORRECTED BEARINGS</h2>
+  <p>Copy everything below and paste it to Claude</p>
+  <textarea id="exportText" readonly></textarea>
+  <div class="export-btns">
+    <button class="btn btn-save" onclick="copyExport()" style="flex:2;">📋 COPY TO CLIPBOARD</button>
+    <button class="btn btn-prev" onclick="closeExport()">✕ CLOSE</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SPOTS=[
+  {key:'eastbourne',   name:'Eastbourne Beach',      lat:50.768,  lon:0.290,   bearing:160},
+  {key:'pevensey',     name:'Pevensey Bay',           lat:50.820,  lon:0.358,   bearing:170},
+  {key:'seaford',      name:'Seaford Beach',          lat:50.770,  lon:0.100,   bearing:155},
+  {key:'rye',          name:'Rye / Camber Sands',     lat:50.920,  lon:0.760,   bearing:175},
+  {key:'cooden',       name:'Cooden Beach',           lat:50.840,  lon:0.440,   bearing:165},
+  {key:'greatstone',   name:'Greatstone Beach',       lat:50.979,  lon:0.983,   bearing:130},
+  {key:'shoreham',     name:'Shoreham Beach',         lat:50.826,  lon:-0.274,  bearing:175},
+  {key:'lancing',      name:'Lancing Beach',          lat:50.829,  lon:-0.317,  bearing:175},
+  {key:'eastwittering',name:'East Wittering',         lat:50.762,  lon:-0.895,  bearing:180},
+  {key:'bracklesham',  name:'Bracklesham Bay',        lat:50.771,  lon:-0.862,  bearing:200},
+  {key:'whitstable',   name:'Whitstable',             lat:51.361,  lon:1.025,   bearing:10},
+  {key:'clacton',      name:'Clacton-on-Sea',         lat:51.789,  lon:1.158,   bearing:90},
+  {key:'hayling',      name:'Hayling Island',         lat:50.762,  lon:-0.978,  bearing:175},
+  {key:'calshot',      name:'Calshot',                lat:50.821,  lon:-1.307,  bearing:180},
+  {key:'mudeford',     name:'Mudeford',               lat:50.723,  lon:-1.742,  bearing:130},
+  {key:'poole',        name:'Poole / Sandbanks',      lat:50.700,  lon:-1.950,  bearing:315},
+  {key:'portland',     name:'Portland Harbour',       lat:50.572,  lon:-2.440,  bearing:50},
+  {key:'weymouth',     name:'Weymouth',               lat:50.609,  lon:-2.457,  bearing:170},
+  {key:'exmouth',      name:'Exmouth',                lat:50.607,  lon:-3.413,  bearing:160},
+  {key:'bigbury',      name:'Bigbury-on-Sea',         lat:50.281,  lon:-3.907,  bearing:200},
+  {key:'westwardho',   name:'Westward Ho!',           lat:51.040,  lon:-4.233,  bearing:270},
+  {key:'saunton',      name:'Saunton Sands',          lat:51.124,  lon:-4.213,  bearing:280},
+  {key:'watergate',    name:'Watergate Bay',          lat:50.452,  lon:-5.038,  bearing:280},
+  {key:'hayle',        name:'Hayle Estuary',          lat:50.187,  lon:-5.432,  bearing:320},
+  {key:'marazion',     name:'Marazion / Mounts Bay',  lat:50.124,  lon:-5.467,  bearing:180},
+  {key:'rockcamel',    name:'Rock / Camel Estuary',   lat:50.549,  lon:-4.924,  bearing:270},
+  {key:'praa',         name:'Praa Sands',             lat:50.097,  lon:-5.371,  bearing:190},
+  {key:'ryde',         name:'Ryde (IoW)',             lat:50.729,  lon:-1.159,  bearing:10},
+  {key:'hunstanton',   name:'Hunstanton',             lat:52.939,  lon:0.492,   bearing:90},
+  {key:'brancaster',   name:'Brancaster',             lat:52.973,  lon:0.641,   bearing:350},
+  {key:'wells',        name:'Wells-next-the-Sea',     lat:52.957,  lon:0.855,   bearing:350},
+  {key:'mersea',       name:'Mersea Island',          lat:51.776,  lon:0.925,   bearing:120},
+  {key:'southend',     name:'Southend-on-Sea',        lat:51.536,  lon:0.713,   bearing:10},
+  {key:'rhosneigr',    name:'Rhosneigr',              lat:53.231,  lon:-4.508,  bearing:270},
+  {key:'abersoch',     name:'Abersoch',               lat:52.833,  lon:-4.497,  bearing:195},
+  {key:'hellsmouth',   name:"Hell's Mouth",           lat:52.823,  lon:-4.558,  bearing:220},
+  {key:'newgale',      name:'Newgale',                lat:51.877,  lon:-5.079,  bearing:270},
+  {key:'llangennith',  name:'Llangennith',            lat:51.608,  lon:-4.296,  bearing:270},
+  {key:'westkirby',    name:'West Kirby',             lat:53.372,  lon:-3.186,  bearing:270},
+  {key:'wallasey',     name:'Wallasey Beach',         lat:53.440,  lon:-3.058,  bearing:300},
+  {key:'ainsdale',     name:'Ainsdale Beach',         lat:53.598,  lon:-3.054,  bearing:270},
+  {key:'morecambe',    name:'Morecambe Bay',          lat:54.073,  lon:-2.858,  bearing:270},
+  {key:'hornsea',      name:'Hornsea',                lat:53.912,  lon:0.165,   bearing:90},
+  {key:'filey',        name:'Filey Bay',              lat:54.209,  lon:-0.277,  bearing:80},
+  {key:'scarborough',  name:'Scarborough South Bay',  lat:54.278,  lon:-0.388,  bearing:110},
+  {key:'tynemouth',    name:'Tynemouth / Longsands',  lat:55.017,  lon:-1.425,  bearing:80},
+  {key:'druridge',     name:'Druridge Bay',           lat:55.280,  lon:-1.570,  bearing:90},
+  {key:'longniddry',   name:'Longniddry',             lat:55.980,  lon:-2.893,  bearing:10},
+  {key:'gullane',      name:'Gullane Beach',          lat:56.031,  lon:-2.831,  bearing:5},
+  {key:'belhaven',     name:'Belhaven Bay',           lat:56.003,  lon:-2.583,  bearing:10},
+  {key:'westsands',    name:'West Sands St Andrews',  lat:56.346,  lon:-2.812,  bearing:350},
+  {key:'largobay',     name:'Largo Bay, Fife',        lat:56.205,  lon:-2.950,  bearing:355},
+  {key:'aberdeen',     name:'Aberdeen Beach',         lat:57.152,  lon:-2.072,  bearing:90},
+  {key:'troon',        name:'Troon Beach',            lat:55.541,  lon:-4.673,  bearing:270},
+  {key:'barassie',     name:'Barassie Beach',         lat:55.574,  lon:-4.669,  bearing:270},
+  {key:'machrihanish', name:'Machrihanish',           lat:55.430,  lon:-5.738,  bearing:270},
+  {key:'tiree',        name:'Tiree / Gott Bay',       lat:56.510,  lon:-6.820,  bearing:90},
+  {key:'nairn',        name:'Nairn Beach',            lat:57.587,  lon:-3.869,  bearing:10},
+  {key:'ballyholme',   name:'Ballyholme Bay',         lat:54.661,  lon:-5.663,  bearing:90},
+  {key:'portstewart',  name:'Portstewart Strand',     lat:55.183,  lon:-6.717,  bearing:300},
+];
+
+const ALL_DIRS=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+const DIR_DEG={N:0,NNE:22.5,NE:45,ENE:67.5,E:90,ESE:112.5,SE:135,SSE:157.5,S:180,SSW:202.5,SW:225,WSW:247.5,W:270,WNW:292.5,NW:315,NNW:337.5};
+
+const savedBearings={};
+SPOTS.forEach(s=>savedBearings[s.key]=s.bearing);
+const confirmed=new Set();
+
+let currentIdx=0,currentBearing=160,map,spotMarker,bLine,oLine,aMarker;
+
+function classifyDir(d,beach){
+  let diff=((DIR_DEG[d]-beach)+360)%360;
+  if(diff>180)diff=360-diff;
+  return diff<=60?'onshore':diff<=90?'cross':'offshore';
+}
+
+function toCard(b){return ALL_DIRS[Math.round(((b%360)+360)%360/22.5)%16];}
+
+function setBearing(val,updateSlider=true){
+  currentBearing=((val%360)+360)%360;
+  const b=Math.round(currentBearing);
+  document.getElementById('bearingDeg').textContent=b+'°';
+  const c=toCard(b);
+  document.getElementById('bearingCard').textContent=`${c} — WATER TO ${c}`;
+  if(updateSlider)document.getElementById('bearingSlider').value=b;
+  document.getElementById('arrowGrp').setAttribute('transform',`rotate(${b},50,50)`);
+  updateDirs();
+  updateMapLine();
+}
+
+function updateDirs(){
+  document.getElementById('dirsGrid').innerHTML=ALL_DIRS.map(d=>{
+    const c=classifyDir(d,currentBearing);
+    return`<div class="dir-chip dir-${c}">${d}</div>`;
+  }).join('');
+}
+
+function updateMapLine(){
+  if(!map)return;
+  const s=SPOTS[currentIdx];
+  [bLine,oLine,aMarker].forEach(l=>{if(l)try{map.removeLayer(l);}catch(e){}});
+  const rad=currentBearing*Math.PI/180;
+  const cosLat=Math.cos(s.lat*Math.PI/180)||1;
+  const d=0.022;
+  const eLat=s.lat+Math.cos(rad)*d;
+  const eLon=s.lon+Math.sin(rad)*d/cosLat;
+  bLine=L.polyline([[s.lat,s.lon],[eLat,eLon]],{color:'#00e5a0',weight:4,opacity:0.9}).addTo(map);
+  const or=(currentBearing+180)*Math.PI/180;
+  const oLat=s.lat+Math.cos(or)*d*0.5;
+  const oLon=s.lon+Math.sin(or)*d*0.5/cosLat;
+  oLine=L.polyline([[s.lat,s.lon],[oLat,oLon]],{color:'#ff3b5c',weight:3,opacity:0.5,dashArray:'5,4'}).addTo(map);
+  const ic=L.divIcon({
+    html:`<div style="border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:16px solid #00e5a0;transform:rotate(${currentBearing}deg);transform-origin:50% 100%;margin-top:-16px;margin-left:-7px;"></div>`,
+    iconSize:[0,0],iconAnchor:[0,16]
+  });
+  aMarker=L.marker([eLat,eLon],{icon:ic}).addTo(map);
+}
+
+function loadSpot(idx){
+  currentIdx=idx;
+  const s=SPOTS[idx];
+  currentBearing=savedBearings[s.key];
+  document.getElementById('spotNum').textContent=`SPOT ${idx+1} OF ${SPOTS.length}`;
+  document.getElementById('spotName').textContent=s.name;
+  updateProgress();
+  if(spotMarker)try{map.removeLayer(spotMarker);}catch(e){}
+  const ic=L.divIcon({html:`<div style="width:16px;height:16px;border-radius:50%;background:#f7c948;border:2px solid #040d1a;box-shadow:0 0 10px #f7c948;"></div>`,iconSize:[16,16],iconAnchor:[8,8]});
+  spotMarker=L.marker([s.lat,s.lon],{icon:ic}).addTo(map);
+  map.flyTo([s.lat,s.lon],13,{duration:0.6});
+  setBearing(currentBearing);
+}
+
+function updateProgress(){
+  const c=confirmed.size;
+  document.getElementById('progFill').style.width=`${c/SPOTS.length*100}%`;
+  document.getElementById('progText').textContent=`${c} / ${SPOTS.length}`;
+}
+
+function saveAndNext(){
+  const s=SPOTS[currentIdx];
+  savedBearings[s.key]=Math.round(currentBearing);
+  confirmed.add(s.key);
+  updateProgress();
+  showToast(`✓ ${s.name} — ${Math.round(currentBearing)}°`);
+  if(currentIdx<SPOTS.length-1)loadSpot(currentIdx+1);
+  else showToast('🎉 All done! Tap EXPORT.');
+}
+
+function nextSpot(){if(currentIdx<SPOTS.length-1)loadSpot(currentIdx+1);}
+function prevSpot(){if(currentIdx>0)loadSpot(currentIdx-1);}
+
+// Compass drag
+const compassEl=document.getElementById('compassEl');
+let dragging=false;
+function angleFrom(e){
+  const r=compassEl.getBoundingClientRect();
+  const cx=r.left+r.width/2,cy=r.top+r.height/2;
+  const t=e.touches?e.touches[0]:e;
+  return(Math.atan2(t.clientX-cx,-(t.clientY-cy))*180/Math.PI+360)%360;
+}
+compassEl.addEventListener('mousedown',e=>{dragging=true;setBearing(angleFrom(e));e.preventDefault();});
+compassEl.addEventListener('touchstart',e=>{dragging=true;setBearing(angleFrom(e));e.preventDefault();},{passive:false});
+window.addEventListener('mousemove',e=>{if(dragging)setBearing(angleFrom(e));});
+window.addEventListener('touchmove',e=>{if(dragging){setBearing(angleFrom(e));e.preventDefault();}},{passive:false});
+window.addEventListener('mouseup',()=>dragging=false);
+window.addEventListener('touchend',()=>dragging=false);
+
+// Compass ticks
+(function(){
+  const g=document.getElementById('ticks');
+  for(let i=0;i<360;i+=10){
+    const r=i*Math.PI/180,inner=i%90===0?35:i%45===0?37:39,outer=44;
+    const x1=50+Math.sin(r)*inner,y1=50-Math.cos(r)*inner;
+    const x2=50+Math.sin(r)*outer,y2=50-Math.cos(r)*outer;
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',x1);l.setAttribute('y1',y1);
+    l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+    l.setAttribute('stroke',i%90===0?'#5bc4f5':'rgba(91,196,245,0.25)');
+    l.setAttribute('stroke-width',i%90===0?'1.5':'0.8');
+    g.appendChild(l);
+  }
+})();
+
+// Export
+function generateExport(){
+  const lines=['WINGCAST BEACH BEARING CORRECTIONS','='.repeat(50),''];
+  SPOTS.forEach(s=>{
+    const b=Math.round(savedBearings[s.key]);
+    const chg=b!==s.bearing?` [was ${s.bearing}]`:'';
+    const conf=confirmed.has(s.key)?'✓':'(unconfirmed)';
+    const cross=[],on=[],off=[];
+    ALL_DIRS.forEach(d=>{
+      const c=classifyDir(d,b);
+      if(c==='cross')cross.push(d);
+      else if(c==='onshore')on.push(d);
+      else off.push(d);
+    });
+    lines.push(`${s.key}: ${b}°${chg} ${conf}`);
+    lines.push(`  cross: ${cross.join(', ')}`);
+    lines.push(`  on:    ${on.join(', ')}`);
+    lines.push(`  off:   ${off.join(', ')}`);
+    lines.push('');
+  });
+  lines.push('='.repeat(50));
+  lines.push('PASTE TO CLAUDE:');
+  lines.push('='.repeat(50),'');
+  lines.push('const CORRECTED={');
+  SPOTS.forEach(s=>lines.push(`  ${s.key}:${Math.round(savedBearings[s.key])},`));
+  lines.push('};');
+  return lines.join('\n');
+}
+
+function showExport(){document.getElementById('exportText').value=generateExport();document.getElementById('exportOverlay').classList.add('open');}
+function closeExport(){document.getElementById('exportOverlay').classList.remove('open');}
+function copyExport(){navigator.clipboard.writeText(document.getElementById('exportText').value).then(()=>showToast('✓ Copied!'));}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// Init map with OpenStreetMap (always works)
+window.addEventListener('load',()=>{
+  // Force the map div to have explicit height before Leaflet init
+  const mapEl = document.getElementById('map');
+  const appEl = document.querySelector('.app');
+  const hdrEl = document.querySelector('.hdr');
+  const ctrlEl = document.querySelector('.controls');
+
+  function setMapHeight() {
+    const total = appEl.clientHeight;
+    const hdrH = hdrEl.offsetHeight;
+    const ctrlH = ctrlEl.offsetHeight;
+    const mapH = total - hdrH - ctrlH;
+    mapEl.style.height = Math.max(mapH, 150) + 'px';
+    if (map) map.invalidateSize();
+  }
+
+  // Set height before init
+  setMapHeight();
+
+  map=L.map('map',{zoomControl:true,attributionControl:true});
+
+  // CartoDB tiles — work from local file:// without CORS issues
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+    attribution:'© OpenStreetMap © CartoDB',
+    subdomains:'abcd',
+    maxZoom:19
+  }).addTo(map);
+
+  // Invalidate size after tiles load
+  setTimeout(() => { setMapHeight(); map.invalidateSize(); }, 100);
+  setTimeout(() => { setMapHeight(); map.invalidateSize(); }, 500);
+  window.addEventListener('resize', setMapHeight);
+
+  loadSpot(0);
+});
+
+window.addEventListener('keydown',e=>{
+  if(e.target.tagName==='TEXTAREA')return;
+  if(e.key==='Enter'||e.key==='ArrowRight')saveAndNext();
+  else if(e.key==='ArrowLeft')prevSpot();
+  else if(e.key==='ArrowUp')setBearing(currentBearing-5);
+  else if(e.key==='ArrowDown')setBearing(currentBearing+5);
+});
+</script>
+</body>
+</html>
