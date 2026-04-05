@@ -923,8 +923,9 @@
 <div id="spotSocialWidget" style="margin:0 16px 12px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;">
   <!-- Action buttons row -->
   <div style="display:flex;border-bottom:1px solid var(--glass-border);">
-    <button onclick="handleCheckIn()" id="checkInBtn" style="flex:1;padding:11px 8px;background:none;border:none;border-right:1px solid var(--glass-border);color:var(--text-dim);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
-      <span>👥</span><span id="checkInBtnText">CHECK IN</span>
+    <button onclick="handleCheckIn()" id="checkInBtn" style="flex:1;padding:11px 8px;background:none;border:none;border-right:1px solid var(--glass-border);color:var(--text-dim);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
+      <div style="display:flex;align-items:center;gap:6px;"><span>👥</span><span id="checkInBtnText">CHECK IN</span></div>
+      <div id="checkInBtnHint" style="font-size:9px;color:var(--text-muted);letter-spacing:0.5px;font-weight:400;"></div>
     </button>
     <button onclick="handleRateConditions()" style="flex:1;padding:11px 8px;background:none;border:none;border-right:1px solid var(--glass-border);color:var(--text-dim);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
       <span>⭐</span><span>RATE</span>
@@ -4176,8 +4177,9 @@ const TUTORIAL_SLIDES = [
   { icon:'🏄‍♂️', title:'Set Up Your Quiver', body:'Add your wings in <strong>Profile → My Quiver</strong>. WingCast will recommend the right wing size based on the forecast wind speed and your weight.' },
   { icon:'🌊', title:'Reading the Forecast', body:'<strong style="color:#00e5a0;">EPIC</strong> = perfect · <strong style="color:#5bc4f5;">GOOD</strong> = solid session · <strong style="color:#f7c948;">MARGINAL</strong> = doable · <strong style="color:#ff3b5c;">OFFSHORE ⚠</strong> = DO NOT LAUNCH. Wind arrows show where wind is blowing <em>to</em>. The TIDE column shows height in metres with ↑↓ trend.' },
   { icon:'🗺️', title:'The Wind Map', body:'The satellite map shows animated wind particles — speed, direction and colour all reflect live conditions. Tap any green pin to see that spot\'s conditions and add it to your list. Use PLAY to animate through the day.' },
+  { icon:'👥', title:'Check In & Rate', body:'On the forecast screen, tap <strong>CHECK IN</strong> when you arrive at a spot — others can see who\'s there. Tap again to <strong>check out</strong> (auto-expires after 3hrs).<br><br>Tap <strong>⭐ RATE</strong> any time to leave a star rating and comment about current conditions. Tap <strong>📤 SHARE</strong> to send the forecast to your WhatsApp group.' },
   { icon:'⚙️', title:'Settings & Alerts', body:'Tap the <strong>⚙️ gear icon</strong> to change wind units (kts/mph/kmh), set wind alerts for your home spot, and configure notifications.' },
-  { icon:'📋', title:'Log Your Sessions', body:'After a session tap <strong>Sessions → Log Session</strong> to record wind, wing, duration and rating. Track your progress over time.' },
+  { icon:'📋', title:'Log Your Sessions', body:'After a session tap <strong>Sessions → Log Session</strong> to record wind, wing, duration and rating. Pro users can attach a <strong>GPS track</strong> from Garmin or any GPS device for full session stats.' },
   { icon:'🎉', title:"You're All Set!", body:'Head to the forecast and check conditions. Replay this tutorial any time from <strong>Profile → Help & Tutorial</strong>.' },
 ];
 let tutorialStep = 0;
@@ -5154,6 +5156,8 @@ function renderSpotSocial(checkins, reports, spotKey) {
   }
   if (checkInBtnText) checkInBtnText.textContent = myCheckIn ? 'CHECKED IN ✓' : 'CHECK IN';
   if (checkInBtn) checkInBtn.style.color = myCheckIn ? 'var(--wind-green)' : 'var(--text-dim)';
+  const hint = document.getElementById('checkInBtnHint');
+  if (hint) hint.textContent = myCheckIn ? 'tap to check out' : 'auto-expires 3hrs';
 
   if (reports.length > 0 && reportsEl && listEl) {
     reportsEl.style.display = 'block';
