@@ -99,7 +99,7 @@
   <div class="controls">
     <div>
       <div class="spot-num" id="spotNum">SPOT 1 OF 60</div>
-      <div class="spot-name" id="spotName">Loading...</div>
+      <div class="spot-name" id="spotName">Eastbourne Beach</div>
     </div>
 
     <div class="bearing-row">
@@ -387,40 +387,32 @@ function showToast(msg){
 
 // Init map with OpenStreetMap (always works)
 window.addEventListener('load',()=>{
-  // Give the map a fixed height first - simplest reliable approach
   const mapEl = document.getElementById('map');
   mapEl.style.height = '300px';
 
-  map=L.map('map',{zoomControl:true,attributionControl:true});
+  map = L.map('map', {zoomControl:true, attributionControl:true});
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
-    attribution:'© OpenStreetMap © CartoDB',
-    subdomains:'abcd',
-    maxZoom:19,
-    crossOrigin: true
+  // Stadia Maps — free, no API key, works on GitHub Pages
+  L.tileLayer('https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}{r}.png', {
+    maxZoom: 20,
+    attribution: '© Stadia Maps © OpenStreetMap'
   }).addTo(map);
 
-  // After map loads, adjust to fill available space
-  setTimeout(() => {
-    const hdrH = document.querySelector('.hdr').offsetHeight;
-    const ctrlH = document.querySelector('.controls').offsetHeight;
-    const winH = window.innerHeight;
-    const newH = Math.max(winH - hdrH - ctrlH, 150);
+  // Resize to fill available space after render
+  function resize() {
+    const hdrH = document.querySelector('.hdr').offsetHeight || 50;
+    const ctrlH = document.querySelector('.controls').offsetHeight || 300;
+    const newH = Math.max(window.innerHeight - hdrH - ctrlH, 180);
     mapEl.style.height = newH + 'px';
     map.invalidateSize(true);
-  }, 200);
+  }
 
-  setTimeout(() => { map.invalidateSize(true); }, 800);
+  setTimeout(resize, 300);
+  setTimeout(resize, 1000);
+  window.addEventListener('resize', resize);
 
-  window.addEventListener('resize', () => {
-    const hdrH = document.querySelector('.hdr').offsetHeight;
-    const ctrlH = document.querySelector('.controls').offsetHeight;
-    const newH = Math.max(window.innerHeight - hdrH - ctrlH, 150);
-    mapEl.style.height = newH + 'px';
-    map.invalidateSize(true);
-  });
-
-  loadSpot(0);
+  // Load first spot after map is ready
+  setTimeout(() => loadSpot(0), 100);
 });
 
   // Invalidate size after tiles load
