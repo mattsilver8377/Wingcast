@@ -1184,6 +1184,27 @@
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);margin-bottom:12px;">New to WingCast? Replay the getting started guide.</div>
       <button onclick="showTutorial()" style="width:100%;padding:12px;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.25);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;">▶ REPLAY TUTORIAL</button>
     </div>
+    <!-- Account management -->
+    <div class="profile-section" id="accountSection" style="display:none;">
+      <div class="profile-section-title">👤 ACCOUNT</div>
+      <div id="accountEmail" style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);margin-bottom:12px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button onclick="openAccountMenu()" style="padding:10px;background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);border-radius:8px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">🔑 SIGN OUT</button>
+        <button onclick="deleteUserAccount()" style="padding:10px;background:rgba(255,59,92,0.06);border:1px solid rgba(255,59,92,0.2);border-radius:8px;color:var(--wind-red);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">🗑 DELETE ACCOUNT</button>
+      </div>
+      <div style="margin-top:8px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:1px;">Deleting your account removes all your data permanently and cancels any subscription.</div>
+    </div>
+    <!-- Contact & support -->
+    <div class="profile-section">
+      <div class="profile-section-title">📧 CONTACT & SUPPORT</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);margin-bottom:10px;">Questions, subscription help or bug reports:</div>
+      <a href="mailto:support@wingcast.app" style="display:block;padding:12px;background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-decoration:none;text-align:center;">✉ support@wingcast.app</a>
+      <div style="margin-top:10px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);">
+        <a href="privacy.html" target="_blank" style="color:var(--muted);text-decoration:underline;">Privacy Policy</a>
+        &nbsp;·&nbsp;
+        <a href="terms.html" target="_blank" style="color:var(--muted);text-decoration:underline;">Terms of Service</a>
+      </div>
+    </div>
     <!-- Feedback at bottom -->
     <div class="profile-section">
       <div class="profile-section-title">💬 SEND FEEDBACK</div>
@@ -2176,7 +2197,10 @@ function renderDate() {
 function renderBanner() {
   const loc = ( LOCATIONS[currentLocation] || BUILTIN_SPOTS[currentLocation] ) || Object.values(LOCATIONS)[0];
   if (!weekData.length || !weekData[0].hours) return;
-  const now = weekData[0].hours[3]; // ~9am today
+  // Find the hour slot closest to current real time
+  const _realHour = new Date().getHours();
+  const _hourIdx = weekData[0].hours.findIndex(h => h.hour >= _realHour);
+  const now = weekData[0].hours[_hourIdx >= 0 ? _hourIdx : weekData[0].hours.length - 1];
   if (!now) return;
   const cond = getWingCondition(now.wind, now.gust, now.swell, now.dir, currentLocation);
   const wc = windClass(now.wind);
@@ -2188,7 +2212,7 @@ function renderBanner() {
     poor: cond.danger ? '⚠ OFFSHORE WIND — DO NOT LAUNCH. Risk of being blown out to sea.' : 'Stay on land today'
   };
 
-  const nowHour = weekData[0].hours[3]?.hour ?? 9;
+  const nowHour = now.hour ?? _realHour;
   const timeLabel = `NOW · ${String(nowHour).padStart(2,'0')}:00`;
 
   document.getElementById('conditionsBanner').innerHTML = `
@@ -3072,6 +3096,14 @@ let addLocMap = null;
 let addLocMarker = null;
 
 function openAddLocation() {
+  // Enforce free tier spot limit
+  const userSpots = Object.keys(LOCATIONS).length;
+  const FREE_SPOT_LIMIT = 2;
+  if (!wcUserPro && userSpots >= FREE_SPOT_LIMIT) {
+    openProModal();
+    if (typeof showToast === 'function') showToast('⭐ Upgrade to Pro for unlimited spots');
+    return;
+  }
   selectedBeachBearing = 180; // default south
   const modal = document.getElementById('addLocationModal');
   if (!modal) return;
@@ -3764,6 +3796,16 @@ function saveSession() {
     windDir:document.getElementById('sWindDir')?.value||'',
     swell:parseFloat(document.getElementById('sSwell').value)||0,
     rating:sessionRating,notes:document.getElementById('sNotes').value});
+  // Enforce free tier session limit
+  const FREE_SESSION_LIMIT = 10;
+  if (!wcUserPro && sessions.length > FREE_SESSION_LIMIT) {
+    saveSessions(sessions);
+    closeLogSession();
+    switchTab('sessions');
+    setTimeout(() => openProModal(), 400);
+    if (typeof showToast === 'function') showToast('⭐ Upgrade to Pro for unlimited sessions');
+    return;
+  }
   saveSessions(sessions); closeLogSession(); switchTab('sessions');
 }
 
@@ -3860,14 +3902,18 @@ async function loadAISummary() {
   const loc = getAllLocations()[currentLocation];
   const hours = day.hours;
 
-  // Parse sunrise/sunset from location data — format "06:28"
-  // Only consider hours between sunrise and 1hr before sunset
+  // Calculate sunrise/sunset dynamically from lat/lon/date
   let sunriseHour = 6, sunsetHour = 20;
-  if (loc?.sunrise) {
-    sunriseHour = parseInt(loc.sunrise.split(':')[0]);
-  }
-  if (loc?.sunset) {
-    sunsetHour = parseInt(loc.sunset.split(':')[0]) - 1; // 1hr before sunset
+  if (loc?.lat && day?.date) {
+    try {
+      const sr = calcSunrise(loc.lat, loc.lon, day.date);
+      sunriseHour = sr.rise;
+      sunsetHour = sr.set - 1; // 1hr before sunset
+    } catch(e) {
+      // fallback to stored strings
+      if (loc?.sunrise) sunriseHour = parseInt(loc.sunrise.split(':')[0]);
+      if (loc?.sunset)  sunsetHour  = parseInt(loc.sunset.split(':')[0]) - 1;
+    }
   }
 
   // Score ALL hours (for offshore detection across whole day)
@@ -4512,6 +4558,65 @@ window.addEventListener('load', () => {
 
 <script>
 // ==================== AUTH & SUBSCRIPTION ====================
+// ==================== SUNRISE/SUNSET CALCULATOR ====================
+// Simplified sunrise/sunset calculation (Spencer/Bourassa method)
+// Returns {rise, set} as integer hours (local time approximation)
+function calcSunrise(lat, lon, date) {
+  const rad = Math.PI / 180;
+  const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
+  const B = (360 / 365) * (dayOfYear - 81) * rad;
+  const decl = 23.45 * Math.sin(B) * rad; // solar declination
+  const latRad = lat * rad;
+  const cosHA = -Math.tan(latRad) * Math.tan(decl);
+  if (cosHA < -1) return { rise: 0, set: 24 }; // midnight sun
+  if (cosHA >  1) return { rise: 12, set: 12 }; // polar night
+  const HA = Math.acos(cosHA) / rad; // hour angle in degrees
+  // Equation of time correction (minutes)
+  const EoT = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+  const lonCorrection = lon / 15; // hours
+  const rise = 12 - HA / 15 - lonCorrection - EoT / 60;
+  const set  = 12 + HA / 15 - lonCorrection - EoT / 60;
+  // Convert to local UK time (UTC+0 in winter, UTC+1 BST in summer)
+  const isDST = date.getTimezoneOffset() < 0 || (function() {
+    const jan = new Date(date.getFullYear(), 0, 1).getTimezoneOffset();
+    const jul = new Date(date.getFullYear(), 6, 1).getTimezoneOffset();
+    return date.getTimezoneOffset() < Math.max(jan, jul);
+  })();
+  const tzOffset = isDST ? 1 : 0;
+  return {
+    rise: Math.round(rise + tzOffset),
+    set:  Math.round(set  + tzOffset)
+  };
+}
+
+// ==================== DELETE ACCOUNT ====================
+async function deleteUserAccount() {
+  if (!wcUser || !_fbAuth) return;
+  const confirmed = confirm(
+    'Are you sure you want to delete your WingCast account?\n\n' +
+    '• Your account and all data will be permanently deleted\n' +
+    '• If you have an active Pro subscription, cancel it in Stripe first\n' +
+    '• This cannot be undone\n\n' +
+    'Type DELETE in the next prompt to confirm.'
+  );
+  if (!confirmed) return;
+  const typed = prompt('Type DELETE to confirm account deletion:');
+  if (typed !== 'DELETE') { alert('Account deletion cancelled.'); return; }
+  try {
+    // Delete Firestore user doc
+    if (_fbDb) await _fbDb.collection('users').doc(wcUser.uid).delete();
+    // Delete auth account
+    await wcUser.delete();
+    alert('Your account has been deleted. Thank you for using WingCast.');
+  } catch(e) {
+    if (e.code === 'auth/requires-recent-login') {
+      alert('For security, please sign out and sign back in before deleting your account.');
+    } else {
+      alert('Could not delete account: ' + e.message);
+    }
+  }
+}
+
 let _fbAuth = null, _fbDb = null, wcUser = null, wcUserPro = false;
 let selectedPlan = 'yearly';
 const FREE_DAY_LIMIT = 3;
@@ -4546,9 +4651,15 @@ function updateAuthUI() {
   if (wcUser) {
     if (btn) { btn.textContent = 'ACCOUNT'; btn.onclick = openAccountMenu; }
     if (emailEl) { emailEl.textContent = wcUser.email; emailEl.style.display = 'block'; }
+    const acctSec = document.getElementById('accountSection');
+    const acctEmail = document.getElementById('accountEmail');
+    if (acctSec) acctSec.style.display = 'block';
+    if (acctEmail) acctEmail.textContent = 'Signed in as: ' + wcUser.email;
   } else {
     if (btn) { btn.textContent = 'SIGN IN'; btn.onclick = openAuthModal; }
     if (emailEl) emailEl.style.display = 'none';
+    const acctSec = document.getElementById('accountSection');
+    if (acctSec) acctSec.style.display = 'none';
   }
   if (badge) badge.style.display = wcUserPro ? 'block' : 'none';
   if (banner) banner.style.display = (wcUser && !wcUserPro) ? 'flex' : 'none';
