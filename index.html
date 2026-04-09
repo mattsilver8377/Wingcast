@@ -1198,7 +1198,7 @@
     <div class="profile-section">
       <div class="profile-section-title">📧 CONTACT & SUPPORT</div>
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);margin-bottom:10px;">Questions, subscription help or bug reports:</div>
-      <a href="mailto:support@wingcast.app" style="display:block;padding:12px;background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-decoration:none;text-align:center;">✉ support@wingcast.app</a>
+      <a href="/cdn-cgi/l/email-protection#04777174746b767044736d6a63676577702a657474" style="display:block;padding:12px;background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-decoration:none;text-align:center;">✉ <span class="__cf_email__" data-cfemail="6d1e181d1d021f192d1a04030a0e0c1e19430c1d1d">[email&#160;protected]</span></a>
       <div style="margin-top:10px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);">
         <a href="privacy.html" target="_blank" style="color:var(--muted);text-decoration:underline;">Privacy Policy</a>
         &nbsp;·&nbsp;
@@ -1499,7 +1499,7 @@
   </div>
 </div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 // Safe localStorage wrapper — handles Edge tracking prevention blocking storage
 const _store = {
   get(k) { try { return localStorage.getItem(k); } catch(e) { return null; } },
@@ -2334,14 +2334,24 @@ function renderDayTabs() {
   const tabs = weekData.map((day, i) => {
     const cond = getBestCondition(day);
     const active = i === selectedDay ? 'active' : '';
-    return `<div class="day-tab ${active}" onclick="selectDay(${i})">
+    const locked = !wcUserPro && i >= FREE_DAY_LIMIT;
+    const lockedStyle = locked
+      ? 'filter:blur(2px);opacity:0.45;cursor:pointer;position:relative;'
+      : '';
+    const lockedClick = locked
+      ? `onclick="openProModal()"` 
+      : `onclick="selectDay(${i})"`;
+    const lockIcon = locked
+      ? `<span style="position:absolute;top:2px;right:3px;font-size:9px;line-height:1;">⭐</span>`
+      : '';
+    return `<div class="day-tab ${active}" ${lockedClick} style="${lockedStyle}">
+      ${lockIcon}
       <span class="day-tab-name">${dayName(day.date, i)}</span>
       <span style="font-size:11px;color:var(--text-muted)">${day.date.getDate()}/${day.date.getMonth()+1}</span>
       <div class="day-tab-score ${cond.score}"></div>
     </div>`;
   });
   document.getElementById('dayTabs').innerHTML = tabs.join('');
-  setTimeout(() => { if (typeof applyProGating === 'function') applyProGating(); }, 50);
 }
 
 function getBestCondition(day) {
@@ -4067,6 +4077,10 @@ function saveNotifPrefs() {
   const tf = document.getElementById('alertTimeFrom'); if(tf) profile.notif.timeFrom = tf.value;
   const tt = document.getElementById('alertTimeTo'); if(tt) profile.notif.timeTo = tt.value;
   _store.set('wc_profile', JSON.stringify(profile));
+  // Sync to Firestore if user is signed in and push is enabled
+  if (_fbDb && wcUser && profile.pushEnabled && profile.fcmToken) {
+    savePushPrefsToFirestore(profile.fcmToken);
+  }
   // Re-render dir picker (offshore may have changed if location changed)
   renderNotifPrefs();
 }
@@ -4366,16 +4380,21 @@ async function subscribePush() {
     const token = await _fbMessaging.getToken({ vapidKey: VAPID_KEY });
     if (!token) throw new Error('No token returned');
 
-    // Save token to profile (for now stored locally — server integration comes next)
+    // Save token to profile locally
     profile.fcmToken = token;
     profile.pushEnabled = true;
     _store.set('wc_profile', JSON.stringify(profile));
     console.log('[WingCast] FCM token:', token);
 
+    // Save token + alert prefs to Firestore so Cloud Function can use them
+    if (_fbDb && wcUser) {
+      await savePushPrefsToFirestore(token);
+    }
+
     if (btn) { btn.textContent = '✓ ENABLED'; btn.style.background = 'rgba(0,229,160,0.25)'; btn.disabled = false; }
     if (statusText) statusText.textContent = '✓ Push notifications active on this device.';
 
-    // Send test notification after 3 seconds
+    // Send test notification after 2 seconds
     setTimeout(() => {
       new Notification('WingCast 🏄', {
         body: 'Wind alerts are now active! You\'ll be notified when conditions hit your target.',
@@ -4387,6 +4406,31 @@ async function subscribePush() {
     console.error('[WingCast] Push subscription failed:', e);
     if (btn) { btn.textContent = 'ENABLE'; btn.disabled = false; }
     if (statusText) statusText.textContent = '⚠ Subscription failed: ' + e.message;
+  }
+}
+
+// Save FCM token + alert preferences to Firestore
+async function savePushPrefsToFirestore(token) {
+  if (!_fbDb || !wcUser) return;
+  try {
+    const n = profile.notif || {};
+    await _fbDb.collection('users').doc(wcUser.uid).update({
+      fcmToken: token || profile.fcmToken || null,
+      pushEnabled: true,
+      alertPrefs: {
+        location: n.location || profile.homeSpot || '',
+        minWind:  n.minWind  || 12,
+        maxWind:  n.maxWind  || 35,
+        dirs:     n.dirs     || null,
+        days:     n.days     || [0,1,2,3,4,5,6],
+        timeFrom: n.timeFrom || '07:00',
+        timeTo:   n.timeTo   || '21:00',
+        lookahead: n.lookahead != null ? n.lookahead : 1,
+      }
+    });
+    console.log('[WingCast] Alert prefs saved to Firestore');
+  } catch(e) {
+    console.warn('[WingCast] Could not save alert prefs:', e.message);
   }
 }
 
@@ -4672,12 +4716,27 @@ function updateAuthUI() {
 function applyProGating() {
   document.querySelectorAll('.day-tab').forEach((tab, i) => {
     if (!wcUserPro && i >= FREE_DAY_LIMIT) {
-      tab.style.opacity = '0.4';
+      tab.style.opacity = '0.5';
+      tab.style.filter = 'blur(1.5px)';
+      tab.style.position = 'relative';
+      tab.style.cursor = 'pointer';
       tab.title = 'Pro feature — upgrade for full 7-day forecast';
+      // Add lock icon if not already there
+      if (!tab.querySelector('.pro-lock')) {
+        const lock = document.createElement('div');
+        lock.className = 'pro-lock';
+        lock.textContent = '⭐';
+        lock.style.cssText = 'position:absolute;top:2px;right:2px;font-size:9px;line-height:1;';
+        tab.appendChild(lock);
+      }
       tab.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openProModal(); };
     } else {
       tab.style.opacity = '';
+      tab.style.filter = '';
+      tab.style.cursor = '';
       tab.title = '';
+      const lock = tab.querySelector('.pro-lock');
+      if (lock) lock.remove();
     }
   });
 }
@@ -5497,13 +5556,3 @@ function saveOnboarding() {
   closeOnboardingModal();
   showToast('✓ Profile saved — welcome to WingCast! 🤙');
 }
-
-// Hook skipTutorial to trigger onboarding
-const _origSkipTutorial = window.skipTutorial;
-window.skipTutorial = function() {
-  if (_origSkipTutorial) _origSkipTutorial();
-  setTimeout(checkOnboardingComplete, 400);
-};
-</script>
-</body>
-</html>
