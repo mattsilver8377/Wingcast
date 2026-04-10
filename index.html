@@ -950,7 +950,7 @@
   <span id="offshoreInfoText">Offshore winds = DANGEROUS — always check direction before launching.</span>
 </div>
 
-<main>
+<main id="main">
   <!-- Stats row -->
   <div class="stats-row" id="statsRow"></div>
 
@@ -1213,28 +1213,23 @@
       </div>
       <div style="margin-top:8px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:1px;">Deleting your account removes all your data permanently and cancels any subscription.</div>
     </div>
-    <!-- Contact & support -->
+    <!-- Contact, support & feedback combined -->
     <div class="profile-section">
-      <div class="profile-section-title">📧 CONTACT & SUPPORT</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);margin-bottom:10px;">Questions, subscription help or bug reports:</div>
-      <a href="/cdn-cgi/l/email-protection#04777174746b767044736d6a63676577702a657474" style="display:block;padding:12px;background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-decoration:none;text-align:center;">✉ <span class="__cf_email__" data-cfemail="6d1e181d1d021f192d1a04030a0e0c1e19430c1d1d">[email&#160;protected]</span></a>
-      <div style="margin-top:10px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);">
-        <a href="privacy.html" target="_blank" style="color:var(--muted);text-decoration:underline;">Privacy Policy</a>
-        &nbsp;·&nbsp;
-        <a href="terms.html" target="_blank" style="color:var(--muted);text-decoration:underline;">Terms of Service</a>
-      </div>
-    </div>
-    <!-- Feedback at bottom -->
-    <div class="profile-section">
-      <div class="profile-section-title">💬 SEND FEEDBACK</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);margin-bottom:12px;">Ideas, bugs, or suggestions? We'd love to hear from you.</div>
-      <textarea id="feedbackText" rows="3" placeholder="Type your feedback here..." class="profile-input" style="resize:vertical;margin-bottom:10px;"></textarea>
+      <div class="profile-section-title">💬 CONTACT & FEEDBACK</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);margin-bottom:10px;">Questions, subscription help, bugs or suggestions:</div>
+      <a href="mailto:support@wingcast.app" style="display:block;padding:12px;background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-decoration:none;text-align:center;margin-bottom:14px;">✉ support@wingcast.app</a>
+      <textarea id="feedbackText" rows="3" placeholder="Or send feedback directly here..." class="profile-input" style="resize:vertical;margin-bottom:10px;"></textarea>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div><label class="profile-label">NAME (optional)</label><input id="feedbackName" type="text" placeholder="Anonymous" class="profile-input"></div>
         <div><label class="profile-label">EMAIL (optional)</label><input id="feedbackEmail" type="email" placeholder="for replies" class="profile-input"></div>
       </div>
       <button onclick="submitFeedback()" style="margin-top:12px;width:100%;padding:12px;background:linear-gradient(135deg,rgba(91,196,245,0.2),rgba(0,229,160,0.1));border:1px solid rgba(91,196,245,0.35);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;" id="feedbackBtn">SEND FEEDBACK</button>
       <div id="feedbackStatus" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;text-align:center;margin-top:8px;display:none;"></div>
+      <div style="margin-top:12px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);">
+        <a href="privacy.html" target="_blank" style="color:var(--muted);text-decoration:underline;">Privacy Policy</a>
+        &nbsp;·&nbsp;
+        <a href="terms.html" target="_blank" style="color:var(--muted);text-decoration:underline;">Terms of Service</a>
+      </div>
     </div>
   </div>
 </div>
@@ -3772,6 +3767,13 @@ function switchTab(tab) {
   const ai=document.getElementById('aiSummaryBar'); if(ai) ai.style.display=(sf&&profile.showAISummary!==false)?'':'none';
   document.getElementById('sessionsPanel').style.display=tab==='sessions'?'':'none';
   document.getElementById('profilePanel').style.display=tab==='profile'?'':'none';
+  document.getElementById('main').style.display=tab==='forecast'?'':'none';
+  // Hide forecast-only elements on other tabs
+  const forecastOnly = ['conditionsBanner','aiSummaryBar','spotWatchers','spotSocialWidget','offlineBadge','offshoreWarning','installBanner'];
+  forecastOnly.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = tab==='forecast' ? '' : 'none';
+  });
   if(tab==='sessions') renderSessions();
   if(tab==='profile') renderProfile();
 }
