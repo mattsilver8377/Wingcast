@@ -4621,8 +4621,8 @@ window.addEventListener('load', () => {
     </a>
 
     <!-- Reassurance line -->
-    <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);letter-spacing:1px;margin-bottom:16px;">
-      ✓ Cancel any time &nbsp;·&nbsp; ✓ No charge during 7-day trial &nbsp;·&nbsp; ✓ Instant access
+    <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:0px;margin-bottom:16px;white-space:nowrap;">
+      ✓ Cancel any time &nbsp;·&nbsp; ✓ No charge in trial &nbsp;·&nbsp; ✓ Instant access
     </div>
 
     <div style="background:rgba(0,229,160,0.05);border:1px solid rgba(0,229,160,0.15);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
@@ -4737,7 +4737,7 @@ function updateAuthUI() {
     if (freeStatus) freeStatus.style.display = wcUserPro ? 'none' : 'block';
     // Set billing portal URL (Stripe Customer Portal)
     const manageBtn = document.getElementById('manageSubBtn');
-    if (manageBtn) manageBtn.href = `https://billing.stripe.com/p/login/6oU7vw6dD9pW7Ty288?prefilled_email=${encodeURIComponent(wcUser.email)}`;
+    if (manageBtn) manageBtn.href = `https://billing.stripe.com/p/login/aFa5kC48r58y0tAeCQgQE00?prefilled_email=${encodeURIComponent(wcUser.email)}`;
   } else {
     if (btn) { btn.textContent = 'SIGN IN'; btn.onclick = openAuthModal; }
     if (emailEl) emailEl.style.display = 'none';
