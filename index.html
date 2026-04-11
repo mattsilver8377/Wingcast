@@ -1373,7 +1373,7 @@
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
         <div><label class="profile-label">WATCH LOCATION</label><select id="alertLocation" onchange="saveNotifPrefs()" class="profile-select"></select></div>
-        <div><label class="profile-label">WIND SPEED (always in KTS)</label>
+        <div><label class="profile-label">WIND SPEED (<span id="alertWindUnitLabel">KTS</span>)</label>
           <div style="display:flex;gap:4px;align-items:center;">
             <input id="alertMinWind" type="number" placeholder="Min" oninput="saveNotifPrefs()" class="profile-input" style="flex:1;text-align:center;">
             <span style="color:var(--text-muted);font-size:11px;">–</span>
@@ -1395,9 +1395,18 @@
           </select>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
         <div><label class="profile-label">FROM</label><input id="alertTimeFrom" type="time" value="07:00" onchange="saveNotifPrefs()" class="profile-input"></div>
         <div><label class="profile-label">UNTIL</label><input id="alertTimeTo" type="time" value="21:00" onchange="saveNotifPrefs()" class="profile-input"></div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label class="profile-label">REPEAT ALERTS</label>
+        <select id="alertCooldown" onchange="saveNotifPrefs()" class="profile-select">
+          <option value="3">Every 3 hours</option>
+          <option value="6" selected>Every 6 hours (default)</option>
+          <option value="12">Every 12 hours</option>
+          <option value="24">Once per day</option>
+        </select>
       </div>
     </div>
     <button onclick="closeSettings()" style="width:100%;padding:12px;background:rgba(91,196,245,0.1);border:1px solid rgba(91,196,245,0.3);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;">DONE</button>
@@ -2141,6 +2150,28 @@ function ktsToBft(kts) {
 
 function windUnitSuffix() {
   return unitLabel(windUnit).toLowerCase();
+}
+
+// Convert from display unit back to KTS for storage
+function displayToKts(val) {
+  if (!val) return null;
+  switch (windUnit) {
+    case 'ms':  return Math.round(val / 0.514444);
+    case 'mph': return Math.round(val / 1.15078);
+    case 'bft': return bftToKts(val);
+    default:    return val;
+  }
+}
+
+// Convert KTS to display unit for showing in inputs
+function ktsToDisplay(kts) {
+  if (!kts) return '';
+  return cvtWind(kts);
+}
+
+function bftToKts(bft) {
+  const table = [0, 1, 4, 7, 11, 17, 22, 28, 34, 41, 48, 56, 64];
+  return table[Math.min(Math.round(bft), 12)] || 0;
 }
 
 let weekData = [];
@@ -4034,11 +4065,16 @@ function renderNotifPrefs() {
       `<option value="${k}" ${k===(profile.notif?.location||profile.homeSpot||currentLocation)?'selected':''}>${v.name}</option>`
     ).join('');
   }
-  // Wind range
-  const mn = document.getElementById('alertMinWind'); if(mn && profile.notif?.minWind) mn.value = profile.notif.minWind;
-  const mx = document.getElementById('alertMaxWind'); if(mx && profile.notif?.maxWind) mx.value = profile.notif.maxWind;
+  // Wind range — show in current display unit
+  const unitLbl = document.getElementById('alertWindUnitLabel');
+  if (unitLbl) unitLbl.textContent = unitLabel(windUnit);
+  const mn = document.getElementById('alertMinWind');
+  if (mn) mn.value = profile.notif?.minWind ? ktsToDisplay(profile.notif.minWind) : '';
+  const mx = document.getElementById('alertMaxWind');
+  if (mx) mx.value = profile.notif?.maxWind ? ktsToDisplay(profile.notif.maxWind) : '';
   // Lookahead
   const la = document.getElementById('alertLookahead'); if(la && profile.notif?.lookahead != null) la.value = profile.notif.lookahead;
+  const cd = document.getElementById('alertCooldown'); if(cd && profile.notif?.cooldownHours) cd.value = profile.notif.cooldownHours;
   // Time window
   const tf = document.getElementById('alertTimeFrom'); if(tf && profile.notif?.timeFrom) tf.value = profile.notif.timeFrom;
   const tt = document.getElementById('alertTimeTo'); if(tt && profile.notif?.timeTo) tt.value = profile.notif.timeTo;
@@ -4092,11 +4128,15 @@ function toggleAlertDay(day) {
 function saveNotifPrefs() {
   if (!profile.notif) profile.notif = {};
   const loc = document.getElementById('alertLocation'); if(loc) profile.notif.location = loc.value;
-  const mn = document.getElementById('alertMinWind'); if(mn) profile.notif.minWind = parseFloat(mn.value)||null;
-  const mx = document.getElementById('alertMaxWind'); if(mx) profile.notif.maxWind = parseFloat(mx.value)||null;
+  // Convert from display unit to KTS for storage
+  const mn = document.getElementById('alertMinWind');
+  if (mn) profile.notif.minWind = mn.value ? displayToKts(parseFloat(mn.value)) : null;
+  const mx = document.getElementById('alertMaxWind');
+  if (mx) profile.notif.maxWind = mx.value ? displayToKts(parseFloat(mx.value)) : null;
   const la = document.getElementById('alertLookahead'); if(la) profile.notif.lookahead = parseInt(la.value)||1;
   const tf = document.getElementById('alertTimeFrom'); if(tf) profile.notif.timeFrom = tf.value;
   const tt = document.getElementById('alertTimeTo'); if(tt) profile.notif.timeTo = tt.value;
+  const cd = document.getElementById('alertCooldown'); if(cd) profile.notif.cooldownHours = parseInt(cd.value)||6;
   _store.set('wc_profile', JSON.stringify(profile));
   // Sync to Firestore if user is signed in and push is enabled
   if (_fbDb && wcUser && profile.pushEnabled && profile.fcmToken) {
@@ -4447,6 +4487,7 @@ async function savePushPrefsToFirestore(token) {
         timeFrom: n.timeFrom || '07:00',
         timeTo:   n.timeTo   || '21:00',
         lookahead: n.lookahead != null ? n.lookahead : 1,
+        cooldownHours: n.cooldownHours || 6,
       }
     });
     console.log('[WingCast] Alert prefs saved to Firestore');
