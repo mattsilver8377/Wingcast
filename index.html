@@ -4344,12 +4344,15 @@ function tutorialNext() {
 function skipTutorial() {
   const modal = document.getElementById('tutorialModal');
   if (modal) modal.style.display = 'none';
+  const seenKey = 'wc_tutorial_' + (wcUser ? wcUser.uid : 'guest');
+  _store.set(seenKey, '1');
   profile.tutorialDone = true;
   _store.set('wc_profile', JSON.stringify(profile));
 }
 
 function checkFirstRun() {
-  if (!profile.tutorialDone) {
+  const seenKey = 'wc_tutorial_' + (wcUser ? wcUser.uid : 'guest');
+  if (!_store.get(seenKey)) {
     showTutorial();
   }
 }
