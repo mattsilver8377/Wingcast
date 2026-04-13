@@ -573,7 +573,7 @@
   }
 
   /* ====== BOTTOM NAV ====== */
-  #bottomNav { position:fixed;bottom:0;left:0;right:0;height:62px;background:rgba(4,13,26,0.97);border-top:1px solid var(--glass-border);display:flex;z-index:300;backdrop-filter:blur(16px); }
+  #bottomNav { position:fixed;bottom:0;left:0;right:0;height:62px;background:rgba(4,13,26,0.97);border-top:1px solid var(--glass-border);display:flex;z-index:1000;backdrop-filter:blur(16px); }
   .nav-btn { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:none;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:1px;cursor:pointer;transition:color 0.2s;padding:0; }
   .nav-btn.active { color:var(--wind-green); }
   .nav-btn.active svg { filter:drop-shadow(0 0 4px var(--wind-green)); }
@@ -965,7 +965,7 @@
       </div>
     </div>
     <!-- Leaflet map container -->
-    <div id="mapContainer" style="position:relative;width:100%;height:320px;margin-bottom:70px;">
+    <div id="mapContainer" style="position:relative;width:100%;height:320px;">
       <div id="leafletMap" style="width:100%;height:320px;"></div>
       <!-- Particle canvas overlay — sits on top of leaflet, pointer-events:none so map stays interactive -->
       <canvas id="windMapCanvas" style="display:block;position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:400;"></canvas>
@@ -1217,7 +1217,7 @@
     <div class="profile-section">
       <div class="profile-section-title">💬 CONTACT & FEEDBACK</div>
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);margin-bottom:10px;">Questions, subscription help, bugs or suggestions:</div>
-      <a id="supportEmailLink" href="#" onclick="this.href='mai'+'lto:'+'support@wingcast.co.uk'" style="display:block;padding:12px;background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-decoration:none;text-align:center;margin-bottom:14px;">✉ support@wingcast.co.uk</a>
+      <a id="supportEmailLink" href="#" onclick="this.href='mai'+'lto:'+'support@wingcast.co.uk'" style="display:block;padding:12px;background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-decoration:none;text-align:center;margin-bottom:14px;">✉ <span class="__cf_email__" data-cfemail="e0939590908f9294a097898e8783819394ce838fce958b">[email&#160;protected]</span></a>
       <textarea id="feedbackText" rows="3" placeholder="Or send feedback directly here..." class="profile-input" style="resize:vertical;margin-bottom:10px;"></textarea>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div><label class="profile-label">NAME (optional)</label><input id="feedbackName" type="text" placeholder="Anonymous" class="profile-input"></div>
@@ -1522,7 +1522,7 @@
   </div>
 </div>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 // Safe localStorage wrapper — handles Edge tracking prevention blocking storage
 const _store = {
   get(k) { try { return localStorage.getItem(k); } catch(e) { return null; } },
@@ -5753,6 +5753,4 @@ function closeOnboardingModal() {
 function saveOnboarding() {
   const name = document.getElementById('obName').value.trim();
   const weight = document.getElementById('obWeight').value;
-  const spot = document.getElementById('obHomeSpot').value;
-  if (name) { profile.name = name; const p = document.getElementById('pName'); if(p) p.value = name; }
-  if (weight) { profile.weight = weight; const p = doc
+  const spot 
