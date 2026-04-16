@@ -3023,14 +3023,6 @@ function setupMapMoveListener() {
 
 
 // Register service worker
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('firebase-messaging-sw.js')
-      .then(reg => console.log('[WingCast] SW registered:', reg.scope))
-      .catch(err => console.warn('[WingCast] SW failed:', err));
-  });
-}
-
 // Install prompt (Android/Chrome)
 let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', e => {
@@ -4381,6 +4373,18 @@ const VAPID_KEY = "BA-zdd561EnP-ippyEbxM8aL1Tyu3Enkt5ZhxW2VMzFE5tQZ1smYhQ0i7CYW0
 
 let _fbApp = null;
 let _fbMessaging = null;
+let _swRegistration = null;
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('firebase-messaging-sw.js')
+      .then(reg => {
+        console.log('[WingCast] SW registered:', reg.scope);
+        _swRegistration = reg;
+      })
+      .catch(err => console.warn('[WingCast] SW failed:', err));
+  });
+}
 
 function initFirebase() {
   if (_fbApp) return _fbApp;
@@ -4388,6 +4392,10 @@ function initFirebase() {
     if (typeof firebase === 'undefined') return null;
     _fbApp = firebase.initializeApp(FIREBASE_CONFIG);
     _fbMessaging = firebase.messaging(_fbApp);
+    // Use our custom SW so Firebase doesn't register a second one
+    if (_swRegistration) {
+      _fbMessaging.useServiceWorker(_swRegistration);
+    }
     // Handle foreground messages
     _fbMessaging.onMessage(payload => {
       console.log('[WingCast] Foreground push:', payload);
