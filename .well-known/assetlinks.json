@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "uk.co.wingcast.app",
+      "sha256_cert_fingerprints": [
+        "93:B0:09:D7:92:50:F2:91:58:74:52:61:67:1D:AE:C3:49:E6:8C:CF:1C:6A:07:41:EE:A8:E2:1A:90:F3:2D:51"
+      ]
+    }
+  }
+]
