@@ -1522,7 +1522,228 @@
   </div>
 </div>
 
+>
+
+<!-- ====== SESSION DETAIL MODAL ====== -->
+<div id="sessionDetailModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.98);z-index:2000;overflow-y:auto;padding:16px 16px 40px;">
+  <div style="max-width:520px;margin:0 auto;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <button onclick="closeSessionDetail()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;padding:0;">←</button>
+      <div id="sdTitle" style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--text-bright);letter-spacing:2px;flex:1;"></div>
+      <div id="sdDate" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);letter-spacing:1px;"></div>
+    </div>
+
+    <!-- Track map (shown if GPX attached) -->
+    <div id="sdMapWrap" style="display:none;border-radius:12px;overflow:hidden;margin-bottom:14px;border:1px solid var(--glass-border);">
+      <div id="sdMap" style="width:100%;height:260px;"></div>
+    </div>
+
+    <!-- No track yet -->
+    <div id="sdNoTrack" style="margin-bottom:14px;padding:16px;background:rgba(247,201,72,0.05);border:1px solid rgba(247,201,72,0.2);border-radius:12px;text-align:center;">
+      <div style="font-size:28px;margin-bottom:8px;">📍</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-dim);margin-bottom:12px;">No GPS track attached to this session.</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);margin-bottom:14px;">Export a .gpx file from your Garmin, Suunto, Apple Watch or any GPS app and upload it here to see your track and performance stats.</div>
+      <button onclick="triggerGpxUpload()" style="padding:10px 24px;background:rgba(247,201,72,0.15);border:1px solid rgba(247,201,72,0.4);border-radius:8px;color:var(--wind-yellow);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;cursor:pointer;">📂 UPLOAD GPX FILE</button>
+    </div>
+
+    <!-- GPS Stats (shown after GPX loaded) -->
+    <div id="sdGpsStats" style="display:none;margin-bottom:14px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:3px;margin-bottom:10px;">GPS PERFORMANCE</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;" id="sdStatsGrid"></div>
+    </div>
+
+    <!-- Direction / Tack Stats -->
+    <div id="sdTackStats" style="display:none;margin-bottom:14px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:3px;margin-bottom:12px;">DIRECTION CHANGES</div>
+      <div id="sdTackContent"></div>
+    </div>
+
+    <!-- Speed chart -->
+    <div id="sdSpeedChartWrap" style="display:none;margin-bottom:14px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:3px;margin-bottom:10px;">SPEED OVER SESSION</div>
+      <canvas id="sdSpeedChart" style="width:100%;height:80px;display:block;"></canvas>
+      <div style="display:flex;justify-content:space-between;margin-top:4px;font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);">
+        <span id="sdChartStart"></span><span id="sdChartEnd"></span>
+      </div>
+    </div>
+
+    <!-- Session info -->
+    <div id="sdInfo" style="background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;margin-bottom:14px;" ></div>
+
+    <!-- Replace/remove GPX -->
+    <div id="sdGpxActions" style="display:none;display:flex;gap:8px;">
+      <button onclick="triggerGpxUpload()" style="flex:1;padding:10px;background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);border-radius:8px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">↑ REPLACE GPX</button>
+      <button onclick="removeGpx()" style="padding:10px 16px;background:rgba(255,59,92,0.08);border:1px solid rgba(255,59,92,0.2);border-radius:8px;color:var(--wind-red);font-family:'Barlow Condensed',sans-serif;font-size:12px;cursor:pointer;">✕ REMOVE</button>
+    </div>
+
+    <input type="file" id="gpxFileInput" accept=".gpx" style="display:none;" onchange="handleGpxFile(event)">
+  </div>
+</div>
+
+<!-- ====== AUTH MODAL ====== -->
+<div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.97);z-index:3000;overflow-y:auto;padding:20px;">
+  <div style="max-width:420px;margin:0 auto;padding-bottom:40px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--wind-green);letter-spacing:3px;">SIGN IN</div>
+      <button onclick="closeAuthModal()" style="background:none;border:none;color:var(--text-dim);font-size:24px;cursor:pointer;">✕</button>
+    </div>
+    <div style="display:flex;gap:0;margin-bottom:24px;border-radius:10px;overflow:hidden;border:1px solid var(--glass-border);">
+      <button id="authTabLogin" onclick="switchAuthTab('login')" style="flex:1;padding:10px;background:rgba(91,196,245,0.15);border:none;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;">SIGN IN</button>
+      <button id="authTabRegister" onclick="switchAuthTab('register')" style="flex:1;padding:10px;background:transparent;border:none;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;">REGISTER</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div id="authRegisterNameField" style="display:none;">
+        <label style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:2px;display:block;margin-bottom:5px;">YOUR NAME</label>
+        <input id="authName" type="text" placeholder="First name" class="profile-input">
+      </div>
+      <div>
+        <label style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:2px;display:block;margin-bottom:5px;">EMAIL</label>
+        <input id="authEmail" type="email" placeholder="your@email.com" class="profile-input">
+      </div>
+      <div>
+        <label style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:2px;display:block;margin-bottom:5px;">PASSWORD</label>
+        <input id="authPassword" type="password" placeholder="Password" class="profile-input">
+      </div>
+      <div id="authErrorMsg" style="display:none;font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--wind-red);letter-spacing:1px;padding:10px 14px;background:rgba(255,59,92,0.08);border:1px solid rgba(255,59,92,0.25);border-radius:8px;"></div>
+      <button id="authSubmitBtn" onclick="submitAuth()" style="padding:14px;background:linear-gradient(135deg,rgba(0,229,160,0.25),rgba(91,196,245,0.15));border:1px solid rgba(0,229,160,0.4);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;">SIGN IN</button>
+      <button id="authForgotBtn" onclick="sendPasswordReset()" style="background:none;border:none;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:1px;cursor:pointer;text-decoration:underline;padding:4px 0;">Forgot password?</button>
+      <div style="display:flex;align-items:center;gap:12px;margin:4px 0;"><div style="flex:1;height:1px;background:var(--glass-border);"></div><span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:1px;">OR</span><div style="flex:1;height:1px;background:var(--glass-border);"></div></div>
+      <button onclick="signInWithGoogle()" style="padding:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:var(--text-bright);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        CONTINUE WITH GOOGLE
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== PRO MODAL ====== -->
+<div id="proModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.97);z-index:3000;overflow-y:auto;padding:20px;">
+  <div style="max-width:420px;margin:0 auto;padding-bottom:40px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--wind-yellow);letter-spacing:3px;">WINGCAST PRO</div>
+      <button onclick="closeProModal()" style="background:none;border:none;color:var(--text-dim);font-size:24px;cursor:pointer;">✕</button>
+    </div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-dim);letter-spacing:1px;margin-bottom:20px;">Wind, waves and GPS tracking — without any limits.</div>
+    <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;padding:18px;margin-bottom:20px;">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">GPS TRACK IMPORT</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Upload .gpx from Garmin, Suunto, Apple Watch</div></div></div>
+        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">SESSION PERFORMANCE STATS</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Distance, max speed, tack count, port/starboard split</div></div></div>
+        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">7-DAY FORECAST</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Full week view — free shows 3 days</div></div></div>
+        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">UNLIMITED SPOTS & SESSIONS</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Free limits 2 spots and 10 sessions</div></div></div>
+        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">PUSH WIND ALERTS</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Notified when your spot hits target wind</div></div></div>
+      </div>
+    </div>
+
+    <!-- Plan selector label -->
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:2px;text-align:center;margin-bottom:10px;">SELECT A PLAN</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div onclick="selectPlan('monthly')" id="planMonthly" style="padding:18px 14px;background:var(--glass);border:2px solid var(--glass-border);border-radius:14px;text-align:center;cursor:pointer;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--text-bright);letter-spacing:1px;margin-bottom:6px;">MONTHLY</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--sky);line-height:1;">£1.99</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);margin-top:4px;">per month</div>
+      </div>
+      <div onclick="selectPlan('yearly')" id="planYearly" style="padding:18px 14px;background:rgba(247,201,72,0.08);border:2px solid var(--wind-yellow);border-radius:14px;text-align:center;cursor:pointer;position:relative;">
+        <div style="position:absolute;top:-1px;right:-1px;background:var(--wind-yellow);color:var(--ocean-deep);font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:0 12px 0 8px;">BEST VALUE</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--text-bright);letter-spacing:1px;margin-bottom:6px;">YEARLY</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--wind-yellow);line-height:1;">£14.99</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--wind-yellow);margin-top:4px;">£1.25 / month</div>
+      </div>
+    </div>
+
+    <!-- CTA button — text updates when plan selected -->
+    <a id="proCheckoutBtn" href="https://buy.stripe.com/eVqbJ05cv0Siekq3YcgQE04" target="_blank" rel="noopener noreferrer" style="display:block;width:100%;padding:16px;background:linear-gradient(135deg,rgba(247,201,72,0.3),rgba(255,140,66,0.2));border:1px solid rgba(247,201,72,0.6);border-radius:12px;color:var(--wind-yellow);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;margin-bottom:8px;text-align:center;text-decoration:none;box-sizing:border-box;line-height:1.4;">
+      7 DAYS FREE, THEN £14.99 / YEAR
+    </a>
+
+    <!-- Reassurance line -->
+    <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:0px;margin-bottom:16px;white-space:nowrap;">
+      ✓ Cancel any time &nbsp;·&nbsp; ✓ No charge in trial &nbsp;·&nbsp; ✓ Instant access
+    </div>
+
+    <div style="background:rgba(0,229,160,0.05);border:1px solid rgba(0,229,160,0.15);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:20px;">💚</span>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);letter-spacing:1px;">Don't want to subscribe? WingCast will always be free to use.</div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- ====== RATE CONDITIONS MODAL ====== -->
+<div id="rateModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.85);z-index:2000;align-items:flex-end;justify-content:center;">
+  <div style="width:100%;max-width:520px;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px 16px 0 0;padding:22px 22px 36px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--wind-green);letter-spacing:2px;">RATE CONDITIONS</div>
+      <button onclick="closeRateModal()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div id="rateSpotName" style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-muted);letter-spacing:2px;margin-bottom:16px;"></div>
+    <div style="margin-bottom:18px;">
+      <label class="profile-label">HOW ARE CONDITIONS RIGHT NOW?</label>
+      <div style="display:flex;gap:8px;margin-top:10px;" id="rateStarRow">
+        <button onclick="setRateStars(1)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
+        <button onclick="setRateStars(2)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
+        <button onclick="setRateStars(3)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
+        <button onclick="setRateStars(4)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
+        <button onclick="setRateStars(5)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
+      </div>
+      <div id="rateStarLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);text-align:center;margin-top:8px;letter-spacing:1px;">Tap to rate</div>
+    </div>
+    <div style="margin-bottom:18px;">
+      <label class="profile-label">ADD A COMMENT (OPTIONAL)</label>
+      <textarea id="rateComment" rows="2" placeholder="e.g. Wind picking up nicely, choppier than forecast..." class="profile-input" style="resize:none;margin-top:6px;"></textarea>
+    </div>
+    <button onclick="submitRating()" id="rateSubmitBtn" style="width:100%;padding:13px;background:linear-gradient(135deg,rgba(0,229,160,0.2),rgba(91,196,245,0.1));border:1px solid rgba(0,229,160,0.4);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;">POST REPORT</button>
+  </div>
+</div>
+
+<!-- ====== SHARE FORECAST MODAL ====== -->
+<div id="shareModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.85);z-index:2000;align-items:flex-end;justify-content:center;">
+  <div style="width:100%;max-width:520px;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px 16px 0 0;padding:22px 22px 36px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--sky);letter-spacing:2px;">SHARE FORECAST</div>
+      <button onclick="closeShareModal()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div id="shareCard" style="border-radius:12px;overflow:hidden;margin-bottom:18px;border:1px solid var(--glass-border);"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <button onclick="shareToWhatsApp()" style="padding:12px;background:rgba(37,211,102,0.12);border:1px solid rgba(37,211,102,0.3);border-radius:10px;color:#25d366;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;">📱 WHATSAPP</button>
+      <button onclick="copyShareLink()" style="padding:12px;background:rgba(91,196,245,0.12);border:1px solid rgba(91,196,245,0.3);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;">🔗 COPY LINK</button>
+      <button onclick="shareNative()" style="padding:12px;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.2);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;grid-column:span 2;">📤 SHARE VIA PHONE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== ONBOARDING MODAL ====== -->
+<div id="onboardingModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.97);z-index:2500;overflow-y:auto;padding:20px;">
+  <div style="max-width:420px;margin:0 auto;padding-bottom:40px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="font-size:48px;margin-bottom:12px;">🤙</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--wind-green);letter-spacing:3px;">QUICK SETUP</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-dim);margin-top:6px;">Takes 30 seconds — makes WingCast way more useful</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label class="profile-label">YOUR NAME</label>
+        <input id="obName" type="text" placeholder="What do people call you?" class="profile-input">
+      </div>
+      <div>
+        <label class="profile-label">YOUR WEIGHT (KG)</label>
+        <input id="obWeight" type="number" placeholder="e.g. 85" class="profile-input">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);margin-top:4px;">Used for wing size recommendations</div>
+      </div>
+      <div>
+        <label class="profile-label">YOUR HOME SPOT</label>
+        <select id="obHomeSpot" class="profile-select"></select>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);margin-top:4px;">We'll show this spot first every time</div>
+      </div>
+      <button onclick="saveOnboarding()" style="padding:14px;background:linear-gradient(135deg,rgba(0,229,160,0.25),rgba(91,196,245,0.15));border:1px solid rgba(0,229,160,0.4);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;margin-top:4px;">LET'S GO 🤙</button>
+      <button onclick="closeOnboardingModal()" style="background:none;border:none;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:12px;cursor:pointer;letter-spacing:1px;">SKIP FOR NOW</button>
+    </div>
+  </div>
+</div>
+
 <script>
+
 // Safe localStorage wrapper — handles Edge tracking prevention blocking storage
 const _store = {
   get(k) { try { return localStorage.getItem(k); } catch(e) { return null; } },
@@ -4396,12 +4617,25 @@ function initFirebase() {
     if (_swRegistration) {
       _fbMessaging.useServiceWorker(_swRegistration);
     }
-    // Handle foreground messages
+    // Handle foreground messages — deduplicate using timestamp
+    let _lastPushTs = 0;
     _fbMessaging.onMessage(payload => {
+      const now = Date.now();
+      if (now - _lastPushTs < 5000) return; // ignore if same push within 5s
+      _lastPushTs = now;
       console.log('[WingCast] Foreground push:', payload);
       const { title, body } = payload.notification || {};
-      // Show in-app banner since browser won't show notification while app is open
       showPushBanner(title || 'WingCast Alert', body || 'Check your forecast!');
+    });
+    // Also listen for messages forwarded from SW
+    navigator.serviceWorker.addEventListener('message', evt => {
+      if (evt.data?.type === 'PUSH_RECEIVED') {
+        const now = Date.now();
+        if (now - _lastPushTs < 5000) return;
+        _lastPushTs = now;
+        const { title, body } = evt.data.payload?.notification || {};
+        showPushBanner(title || 'WingCast Alert', body || 'Check your forecast!');
+      }
     });
     return _fbApp;
   } catch(e) {
@@ -4582,153 +4816,8 @@ window.addEventListener('load', () => {
   initFirebase();
   updatePushBtn();
 });
-</script>
 
-<!-- ====== SESSION DETAIL MODAL ====== -->
-<div id="sessionDetailModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.98);z-index:2000;overflow-y:auto;padding:16px 16px 40px;">
-  <div style="max-width:520px;margin:0 auto;">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-      <button onclick="closeSessionDetail()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;padding:0;">←</button>
-      <div id="sdTitle" style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--text-bright);letter-spacing:2px;flex:1;"></div>
-      <div id="sdDate" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);letter-spacing:1px;"></div>
-    </div>
 
-    <!-- Track map (shown if GPX attached) -->
-    <div id="sdMapWrap" style="display:none;border-radius:12px;overflow:hidden;margin-bottom:14px;border:1px solid var(--glass-border);">
-      <div id="sdMap" style="width:100%;height:260px;"></div>
-    </div>
-
-    <!-- No track yet -->
-    <div id="sdNoTrack" style="margin-bottom:14px;padding:16px;background:rgba(247,201,72,0.05);border:1px solid rgba(247,201,72,0.2);border-radius:12px;text-align:center;">
-      <div style="font-size:28px;margin-bottom:8px;">📍</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-dim);margin-bottom:12px;">No GPS track attached to this session.</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);margin-bottom:14px;">Export a .gpx file from your Garmin, Suunto, Apple Watch or any GPS app and upload it here to see your track and performance stats.</div>
-      <button onclick="triggerGpxUpload()" style="padding:10px 24px;background:rgba(247,201,72,0.15);border:1px solid rgba(247,201,72,0.4);border-radius:8px;color:var(--wind-yellow);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;cursor:pointer;">📂 UPLOAD GPX FILE</button>
-    </div>
-
-    <!-- GPS Stats (shown after GPX loaded) -->
-    <div id="sdGpsStats" style="display:none;margin-bottom:14px;">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:3px;margin-bottom:10px;">GPS PERFORMANCE</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;" id="sdStatsGrid"></div>
-    </div>
-
-    <!-- Direction / Tack Stats -->
-    <div id="sdTackStats" style="display:none;margin-bottom:14px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:3px;margin-bottom:12px;">DIRECTION CHANGES</div>
-      <div id="sdTackContent"></div>
-    </div>
-
-    <!-- Speed chart -->
-    <div id="sdSpeedChartWrap" style="display:none;margin-bottom:14px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:3px;margin-bottom:10px;">SPEED OVER SESSION</div>
-      <canvas id="sdSpeedChart" style="width:100%;height:80px;display:block;"></canvas>
-      <div style="display:flex;justify-content:space-between;margin-top:4px;font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);">
-        <span id="sdChartStart"></span><span id="sdChartEnd"></span>
-      </div>
-    </div>
-
-    <!-- Session info -->
-    <div id="sdInfo" style="background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;margin-bottom:14px;" ></div>
-
-    <!-- Replace/remove GPX -->
-    <div id="sdGpxActions" style="display:none;display:flex;gap:8px;">
-      <button onclick="triggerGpxUpload()" style="flex:1;padding:10px;background:rgba(91,196,245,0.08);border:1px solid rgba(91,196,245,0.2);border-radius:8px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">↑ REPLACE GPX</button>
-      <button onclick="removeGpx()" style="padding:10px 16px;background:rgba(255,59,92,0.08);border:1px solid rgba(255,59,92,0.2);border-radius:8px;color:var(--wind-red);font-family:'Barlow Condensed',sans-serif;font-size:12px;cursor:pointer;">✕ REMOVE</button>
-    </div>
-
-    <input type="file" id="gpxFileInput" accept=".gpx" style="display:none;" onchange="handleGpxFile(event)">
-  </div>
-</div>
-
-<!-- ====== AUTH MODAL ====== -->
-<div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.97);z-index:3000;overflow-y:auto;padding:20px;">
-  <div style="max-width:420px;margin:0 auto;padding-bottom:40px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--wind-green);letter-spacing:3px;">SIGN IN</div>
-      <button onclick="closeAuthModal()" style="background:none;border:none;color:var(--text-dim);font-size:24px;cursor:pointer;">✕</button>
-    </div>
-    <div style="display:flex;gap:0;margin-bottom:24px;border-radius:10px;overflow:hidden;border:1px solid var(--glass-border);">
-      <button id="authTabLogin" onclick="switchAuthTab('login')" style="flex:1;padding:10px;background:rgba(91,196,245,0.15);border:none;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;">SIGN IN</button>
-      <button id="authTabRegister" onclick="switchAuthTab('register')" style="flex:1;padding:10px;background:transparent;border:none;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;">REGISTER</button>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:14px;">
-      <div id="authRegisterNameField" style="display:none;">
-        <label style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:2px;display:block;margin-bottom:5px;">YOUR NAME</label>
-        <input id="authName" type="text" placeholder="First name" class="profile-input">
-      </div>
-      <div>
-        <label style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:2px;display:block;margin-bottom:5px;">EMAIL</label>
-        <input id="authEmail" type="email" placeholder="your@email.com" class="profile-input">
-      </div>
-      <div>
-        <label style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text-muted);letter-spacing:2px;display:block;margin-bottom:5px;">PASSWORD</label>
-        <input id="authPassword" type="password" placeholder="Password" class="profile-input">
-      </div>
-      <div id="authErrorMsg" style="display:none;font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--wind-red);letter-spacing:1px;padding:10px 14px;background:rgba(255,59,92,0.08);border:1px solid rgba(255,59,92,0.25);border-radius:8px;"></div>
-      <button id="authSubmitBtn" onclick="submitAuth()" style="padding:14px;background:linear-gradient(135deg,rgba(0,229,160,0.25),rgba(91,196,245,0.15));border:1px solid rgba(0,229,160,0.4);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;">SIGN IN</button>
-      <button id="authForgotBtn" onclick="sendPasswordReset()" style="background:none;border:none;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:1px;cursor:pointer;text-decoration:underline;padding:4px 0;">Forgot password?</button>
-      <div style="display:flex;align-items:center;gap:12px;margin:4px 0;"><div style="flex:1;height:1px;background:var(--glass-border);"></div><span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:1px;">OR</span><div style="flex:1;height:1px;background:var(--glass-border);"></div></div>
-      <button onclick="signInWithGoogle()" style="padding:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:var(--text-bright);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
-        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-        CONTINUE WITH GOOGLE
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ====== PRO MODAL ====== -->
-<div id="proModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.97);z-index:3000;overflow-y:auto;padding:20px;">
-  <div style="max-width:420px;margin:0 auto;padding-bottom:40px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--wind-yellow);letter-spacing:3px;">WINGCAST PRO</div>
-      <button onclick="closeProModal()" style="background:none;border:none;color:var(--text-dim);font-size:24px;cursor:pointer;">✕</button>
-    </div>
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-dim);letter-spacing:1px;margin-bottom:20px;">Wind, waves and GPS tracking — without any limits.</div>
-    <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;padding:18px;margin-bottom:20px;">
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">GPS TRACK IMPORT</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Upload .gpx from Garmin, Suunto, Apple Watch</div></div></div>
-        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">SESSION PERFORMANCE STATS</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Distance, max speed, tack count, port/starboard split</div></div></div>
-        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">7-DAY FORECAST</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Full week view — free shows 3 days</div></div></div>
-        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">UNLIMITED SPOTS & SESSIONS</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Free limits 2 spots and 10 sessions</div></div></div>
-        <div style="display:flex;align-items:center;gap:12px;"><span style="color:var(--wind-green);font-size:16px;">✓</span><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-bright);font-weight:700;">PUSH WIND ALERTS</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-dim);">Notified when your spot hits target wind</div></div></div>
-      </div>
-    </div>
-
-    <!-- Plan selector label -->
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:2px;text-align:center;margin-bottom:10px;">SELECT A PLAN</div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-      <div onclick="selectPlan('monthly')" id="planMonthly" style="padding:18px 14px;background:var(--glass);border:2px solid var(--glass-border);border-radius:14px;text-align:center;cursor:pointer;">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--text-bright);letter-spacing:1px;margin-bottom:6px;">MONTHLY</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--sky);line-height:1;">£1.99</div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);margin-top:4px;">per month</div>
-      </div>
-      <div onclick="selectPlan('yearly')" id="planYearly" style="padding:18px 14px;background:rgba(247,201,72,0.08);border:2px solid var(--wind-yellow);border-radius:14px;text-align:center;cursor:pointer;position:relative;">
-        <div style="position:absolute;top:-1px;right:-1px;background:var(--wind-yellow);color:var(--ocean-deep);font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:0 12px 0 8px;">BEST VALUE</div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--text-bright);letter-spacing:1px;margin-bottom:6px;">YEARLY</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--wind-yellow);line-height:1;">£14.99</div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--wind-yellow);margin-top:4px;">£1.25 / month</div>
-      </div>
-    </div>
-
-    <!-- CTA button — text updates when plan selected -->
-    <a id="proCheckoutBtn" href="https://buy.stripe.com/eVqbJ05cv0Siekq3YcgQE04" target="_blank" rel="noopener noreferrer" style="display:block;width:100%;padding:16px;background:linear-gradient(135deg,rgba(247,201,72,0.3),rgba(255,140,66,0.2));border:1px solid rgba(247,201,72,0.6);border-radius:12px;color:var(--wind-yellow);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;margin-bottom:8px;text-align:center;text-decoration:none;box-sizing:border-box;line-height:1.4;">
-      7 DAYS FREE, THEN £14.99 / YEAR
-    </a>
-
-    <!-- Reassurance line -->
-    <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);letter-spacing:0px;margin-bottom:16px;white-space:nowrap;">
-      ✓ Cancel any time &nbsp;·&nbsp; ✓ No charge in trial &nbsp;·&nbsp; ✓ Instant access
-    </div>
-
-    <div style="background:rgba(0,229,160,0.05);border:1px solid rgba(0,229,160,0.15);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
-      <span style="font-size:20px;">💚</span>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);letter-spacing:1px;">Don't want to subscribe? WingCast will always be free to use.</div>
-    </div>
-  </div>
-</div>
-
-<script>
 // ==================== AUTH & SUBSCRIPTION ====================
 // ==================== SUNRISE/SUNSET CALCULATOR ====================
 // Simplified sunrise/sunset calculation (Spencer/Bourassa method)
@@ -5395,81 +5484,8 @@ function handleGpxFile(event) {
   };
   reader.readAsText(file);
 }
-</script>
 
-<!-- ====== RATE CONDITIONS MODAL ====== -->
-<div id="rateModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.85);z-index:2000;align-items:flex-end;justify-content:center;">
-  <div style="width:100%;max-width:520px;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px 16px 0 0;padding:22px 22px 36px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--wind-green);letter-spacing:2px;">RATE CONDITIONS</div>
-      <button onclick="closeRateModal()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;">✕</button>
-    </div>
-    <div id="rateSpotName" style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-muted);letter-spacing:2px;margin-bottom:16px;"></div>
-    <div style="margin-bottom:18px;">
-      <label class="profile-label">HOW ARE CONDITIONS RIGHT NOW?</label>
-      <div style="display:flex;gap:8px;margin-top:10px;" id="rateStarRow">
-        <button onclick="setRateStars(1)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
-        <button onclick="setRateStars(2)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
-        <button onclick="setRateStars(3)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
-        <button onclick="setRateStars(4)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
-        <button onclick="setRateStars(5)" style="flex:1;padding:12px;border-radius:8px;background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.2);font-size:22px;cursor:pointer;">⭐</button>
-      </div>
-      <div id="rateStarLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);text-align:center;margin-top:8px;letter-spacing:1px;">Tap to rate</div>
-    </div>
-    <div style="margin-bottom:18px;">
-      <label class="profile-label">ADD A COMMENT (OPTIONAL)</label>
-      <textarea id="rateComment" rows="2" placeholder="e.g. Wind picking up nicely, choppier than forecast..." class="profile-input" style="resize:none;margin-top:6px;"></textarea>
-    </div>
-    <button onclick="submitRating()" id="rateSubmitBtn" style="width:100%;padding:13px;background:linear-gradient(135deg,rgba(0,229,160,0.2),rgba(91,196,245,0.1));border:1px solid rgba(0,229,160,0.4);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;">POST REPORT</button>
-  </div>
-</div>
 
-<!-- ====== SHARE FORECAST MODAL ====== -->
-<div id="shareModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.85);z-index:2000;align-items:flex-end;justify-content:center;">
-  <div style="width:100%;max-width:520px;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px 16px 0 0;padding:22px 22px 36px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--sky);letter-spacing:2px;">SHARE FORECAST</div>
-      <button onclick="closeShareModal()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;">✕</button>
-    </div>
-    <div id="shareCard" style="border-radius:12px;overflow:hidden;margin-bottom:18px;border:1px solid var(--glass-border);"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <button onclick="shareToWhatsApp()" style="padding:12px;background:rgba(37,211,102,0.12);border:1px solid rgba(37,211,102,0.3);border-radius:10px;color:#25d366;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;">📱 WHATSAPP</button>
-      <button onclick="copyShareLink()" style="padding:12px;background:rgba(91,196,245,0.12);border:1px solid rgba(91,196,245,0.3);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;">🔗 COPY LINK</button>
-      <button onclick="shareNative()" style="padding:12px;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.2);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;grid-column:span 2;">📤 SHARE VIA PHONE</button>
-    </div>
-  </div>
-</div>
-
-<!-- ====== ONBOARDING MODAL ====== -->
-<div id="onboardingModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.97);z-index:2500;overflow-y:auto;padding:20px;">
-  <div style="max-width:420px;margin:0 auto;padding-bottom:40px;">
-    <div style="text-align:center;margin-bottom:24px;">
-      <div style="font-size:48px;margin-bottom:12px;">🤙</div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--wind-green);letter-spacing:3px;">QUICK SETUP</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text-dim);margin-top:6px;">Takes 30 seconds — makes WingCast way more useful</div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:14px;">
-      <div>
-        <label class="profile-label">YOUR NAME</label>
-        <input id="obName" type="text" placeholder="What do people call you?" class="profile-input">
-      </div>
-      <div>
-        <label class="profile-label">YOUR WEIGHT (KG)</label>
-        <input id="obWeight" type="number" placeholder="e.g. 85" class="profile-input">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);margin-top:4px;">Used for wing size recommendations</div>
-      </div>
-      <div>
-        <label class="profile-label">YOUR HOME SPOT</label>
-        <select id="obHomeSpot" class="profile-select"></select>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);margin-top:4px;">We'll show this spot first every time</div>
-      </div>
-      <button onclick="saveOnboarding()" style="padding:14px;background:linear-gradient(135deg,rgba(0,229,160,0.25),rgba(91,196,245,0.15));border:1px solid rgba(0,229,160,0.4);border-radius:10px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;margin-top:4px;">LET'S GO 🤙</button>
-      <button onclick="closeOnboardingModal()" style="background:none;border:none;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:12px;cursor:pointer;letter-spacing:1px;">SKIP FOR NOW</button>
-    </div>
-  </div>
-</div>
-
-<script>
 // ==================== SPOT SOCIAL SYSTEM ====================
 let _socialUnsubscribe = null;
 
