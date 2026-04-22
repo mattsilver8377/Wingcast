@@ -923,14 +923,14 @@
 <div id="spotSocialWidget" style="margin:0 16px 12px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;">
   <!-- Action buttons row -->
   <div style="display:flex;border-bottom:1px solid var(--glass-border);">
-    <button onclick="if(typeof handleCheckIn==='function')handleCheckIn();else openAuthModal()" id="checkInBtn" style="flex:1;padding:11px 8px;background:none;border:none;border-right:1px solid var(--glass-border);color:var(--text-dim);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
+    <button onclick="handleCheckIn()" id="checkInBtn" style="flex:1;padding:11px 8px;background:none;border:none;border-right:1px solid var(--glass-border);color:var(--text-dim);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
       <div style="display:flex;align-items:center;gap:6px;"><span>👥</span><span id="checkInBtnText">CHECK IN</span></div>
       <div id="checkInBtnHint" style="font-size:9px;color:var(--text-muted);letter-spacing:0.5px;font-weight:400;"></div>
     </button>
-    <button onclick="if(typeof handleRateConditions==='function')handleRateConditions();else openAuthModal()" style="flex:1;padding:11px 8px;background:none;border:none;border-right:1px solid var(--glass-border);color:var(--text-dim);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+    <button onclick="handleRateConditions()" style="flex:1;padding:11px 8px;background:none;border:none;border-right:1px solid var(--glass-border);color:var(--text-dim);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
       <span>⭐</span><span>RATE</span>
     </button>
-    <button onclick="if(typeof handleShare==='function')handleShare();else openShareModal()" style="flex:1;padding:11px 8px;background:none;border:none;color:var(--text-dim);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+    <button onclick="handleShare()" style="flex:1;padding:11px 8px;background:none;border:none;color:var(--text-dim);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
       <span>📤</span><span>SHARE</span>
     </button>
   </div>
@@ -1529,6 +1529,22 @@ const _store = {
   set(k,v) { try { localStorage.setItem(k,v); } catch(e) {} },
   del(k) { try { localStorage.removeItem(k); } catch(e) {} }
 };
+
+// ── DEFERRED SOCIAL STUBS — replaced by full implementations later ──
+// These ensure onclick handlers never throw ReferenceError
+window.handleCheckIn = function() {
+  if (typeof _fbAuth === 'undefined' || !_fbAuth) {
+    setTimeout(() => window.handleCheckIn(), 500); return;
+  }
+  // Will be overwritten by full implementation below
+};
+window.handleRateConditions = function() {
+  if (typeof _fbAuth === 'undefined' || !_fbAuth) {
+    setTimeout(() => window.handleRateConditions(), 500); return;
+  }
+};
+window.handleShare = function() { openShareModal(); };
+
 // ==================== DATA ENGINE ====================
 
 // South Coast UK beaches face SOUTH onto the English Channel.
@@ -4574,10 +4590,16 @@ async function disablePush() {
 }
 
 // Call updatePushBtn when settings opens
+// Ensure renderNotifPrefs is available across script blocks
+window._renderNotifPrefs = function() {
+  if (typeof renderNotifPrefs === 'function') renderNotifPrefs();
+  else setTimeout(() => window._renderNotifPrefs(), 300);
+};
 const _origOpenSettings = window.openSettings;
 window.openSettings = function() {
   if (_origOpenSettings) _origOpenSettings();
   setTimeout(updatePushBtn, 100);
+  setTimeout(() => window._renderNotifPrefs(), 150);
 };
 
 // Init Firebase silently on load (needed for background messages)
@@ -5584,7 +5606,7 @@ function timeAgo(date) {
   return `${Math.floor(mins/60)}h ago`;
 }
 
-async function handleCheckIn() {
+async function handleCheckIn() { window.handleCheckIn = handleCheckIn;
   if (!wcUser) { openAuthModal(); return; }
   if (!_fbDb) return;
   const spotKey = currentLocation;
@@ -5608,12 +5630,12 @@ async function handleCheckIn() {
   } catch(e) { console.warn('[WingCast] Check-in error:', e.message); }
 }
 
-function handleRateConditions() {
+function handleRateConditions() { window.handleRateConditions = handleRateConditions;
   if (!wcUser) { openAuthModal(); return; }
   openRateModal();
 }
 
-function handleShare() { openShareModal(); }
+function handleShare() { window.handleShare = handleShare; openShareModal(); }
 
 function showToast(msg) {
   let t = document.getElementById('wcToast');
