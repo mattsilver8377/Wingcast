@@ -3756,10 +3756,15 @@ function switchTab(tab) {
   });
   const sf=tab==='forecast';
   document.querySelector('main').style.display=sf?'':'none';
-  const cb=document.getElementById('conditionsBanner'); if(cb) cb.style.display=sf?'':'none';
-  const ib=document.getElementById('offshoreInfoBar'); if(ib) ib.style.display=(sf&&profile.showWarnings!==false)?'':'none';
-  const db=document.getElementById('dataSrcBadge'); if(db) db.style.display=sf?'':'none';
-  const ai=document.getElementById('aiSummaryBar'); if(ai) ai.style.display=(sf&&profile.showAISummary!==false)?'':'none';
+  // Hide/show forecast-only elements
+  ['conditionsBanner','aiSummaryBar','spotWatchers','spotSocialWidget',
+   'offlineBadge','installBanner','dataSrcBadge'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.style.display=sf?'':'none';
+  });
+  const ib=document.getElementById('offshoreInfoBar');
+  if(ib) ib.style.display=(sf&&profile.showWarnings!==false)?'':'none';
+  const ai=document.getElementById('aiSummaryBar');
+  if(ai) ai.style.display=(sf&&profile.showAISummary!==false)?'':'none';
   document.getElementById('sessionsPanel').style.display=tab==='sessions'?'':'none';
   document.getElementById('profilePanel').style.display=tab==='profile'?'':'none';
   if(tab==='sessions') renderSessions();
@@ -4366,6 +4371,11 @@ window.openSettings = function() {
 window.addEventListener('load', () => {
   initFirebase();
   updatePushBtn();
+});
+
+// Also init Firebase auth early so wcUser is ready when buttons are clicked
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(initFirebaseAuth, 300);
 });
 </script>
 
@@ -5245,8 +5255,10 @@ function timeAgo(date) {
 }
 
 async function handleCheckIn() {
+  // If Firebase auth hasn't resolved yet, wait and retry
+  if (!_fbAuth) { initFirebaseAuth(); setTimeout(()=>window.handleCheckIn&&window.handleCheckIn(), 1500); return; }
   if (!wcUser) { openAuthModal(); return; }
-  if (!_fbDb) return;
+  if (!_fbDb) { setTimeout(()=>window.handleCheckIn&&window.handleCheckIn(), 1000); return; }
   const spotKey = currentLocation;
   const myDocId = `${spotKey}_${wcUser.uid}`;
   const cutoff3h = new Date(new Date() - 3 * 60 * 60 * 1000);
@@ -5269,6 +5281,7 @@ async function handleCheckIn() {
 }
 
 function handleRateConditions() {
+  if (!_fbAuth) { initFirebaseAuth(); setTimeout(()=>window.handleRateConditions&&window.handleRateConditions(), 1500); return; }
   if (!wcUser) { openAuthModal(); return; }
   openRateModal();
 }
