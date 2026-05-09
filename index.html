@@ -1357,7 +1357,7 @@
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-bright);font-weight:600;">📱 Phone Notifications</div>
             <div id="pushStatusText" style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);margin-top:2px;">Get notified when wind hits your target — even when the app is closed.</div>
           </div>
-          <button id="pushEnableBtn" onclick="requestPushPermission()" style="padding:7px 14px;background:rgba(0,229,160,0.15);border:1px solid rgba(0,229,160,0.4);border-radius:6px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;white-space:nowrap;">ENABLE</button>
+          <button id="pushEnableBtn" onclick="(profile.pushEnabled?disablePush:requestPushPermission)()" style="padding:7px 14px;background:rgba(0,229,160,0.15);border:1px solid rgba(0,229,160,0.4);border-radius:6px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;white-space:nowrap;">ENABLE</button>
         </div>
       </div>
       <div id="savedAlertsList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
@@ -4380,29 +4380,43 @@ async function subscribePush() {
 async function savePushPrefsToFirestore(token) {
   if (!_fbDb || !wcUser) return;
   try {
-    // Build alertPrefs from multi-alert system (profile.alerts)
-    // Cloud Function reads alertPrefs array to know what to check
+    // Get all enabled alerts from multi-alert system
     const alerts = (profile.alerts || []).filter(a => a.enabled !== false);
-    // Also support legacy single notif for backwards compat
     const n = profile.notif || {};
-    const firstAlert = alerts[0] || n;
+
+    // Build alertPrefs as a clean array - Cloud Function iterates this
+    const ALL_COMPASS_DIRS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    const prefsArray = alerts.length ? alerts.map(a => ({
+      location:     a.location || profile.homeSpot || 'eastbourne',
+      minWind:      a.minWind  || 10,
+      maxWind:      a.maxWind  || 40,
+      // dirs:null means all directions - replace with explicit all-dirs array
+      dirs:         (a.dirs && a.dirs.length) ? a.dirs : ALL_COMPASS_DIRS,
+      days:         (a.days && a.days.length) ? a.days : [0,1,2,3,4,5,6],
+      timeFrom:     a.timeFrom || '07:00',
+      timeTo:       a.timeTo   || '21:00',
+      lookahead:    a.lookahead != null ? a.lookahead : 1,
+      cooldownHours: a.cooldownHours || 6,
+    })) : [{
+      // Fallback single alert from legacy profile.notif
+      location:     n.location || profile.homeSpot || 'eastbourne',
+      minWind:      n.minWind  || 10,
+      maxWind:      n.maxWind  || 40,
+      dirs:         (n.dirs && n.dirs.length) ? n.dirs : ALL_COMPASS_DIRS,
+      days:         [0,1,2,3,4,5,6],
+      timeFrom:     n.timeFrom || '07:00',
+      timeTo:       n.timeTo   || '21:00',
+      lookahead:    1,
+      cooldownHours: 6,
+    }];
+
     await _fbDb.collection('users').doc(wcUser.uid).set({
-      fcmToken: token || profile.fcmToken || null,
+      fcmToken:    token || profile.fcmToken || null,
       pushEnabled: true,
-      // Array of all active alerts for Cloud Function
-      alertPrefs: alerts.length ? alerts : [{
-        location: n.location || profile.homeSpot || '',
-        minWind:  n.minWind  || 12,
-        maxWind:  n.maxWind  || 35,
-        dirs:     n.dirs     || null,
-        days:     n.days     || [0,1,2,3,4,5,6],
-        timeFrom: n.timeFrom || '07:00',
-        timeTo:   n.timeTo   || '21:00',
-        lookahead: n.lookahead != null ? n.lookahead : 1,
-        cooldownHours: n.cooldownHours || 6,
-      }],
-    }, { merge: true });  // merge:true so isPro etc not overwritten
-    console.log('[WingCast] Push prefs saved to Firestore:', alerts.length, 'alert(s)');
+      alertPrefs:  prefsArray,
+    }, { merge: true });
+
+    console.log('[WingCast] Push prefs saved:', prefsArray.length, 'alert(s), dirs:', prefsArray[0].dirs);
   } catch(e) {
     console.warn('[WingCast] Could not save push prefs:', e.message);
   }
