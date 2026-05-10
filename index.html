@@ -1357,7 +1357,7 @@
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-bright);font-weight:600;">📱 Phone Notifications</div>
             <div id="pushStatusText" style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);margin-top:2px;">Get notified when wind hits your target — even when the app is closed.</div>
           </div>
-          <button id="pushEnableBtn" onclick="(profile.pushEnabled?disablePush:requestPushPermission)()" style="padding:7px 14px;background:rgba(0,229,160,0.15);border:1px solid rgba(0,229,160,0.4);border-radius:6px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;white-space:nowrap;">ENABLE</button>
+          <button id="pushEnableBtn" onclick="window._togglePush&&window._togglePush()" style="padding:7px 14px;background:rgba(0,229,160,0.15);border:1px solid rgba(0,229,160,0.4);border-radius:6px;color:var(--wind-green);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;white-space:nowrap;">ENABLE</button>
         </div>
       </div>
       <div id="savedAlertsList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
@@ -4472,6 +4472,24 @@ async function disablePush() {
   }
   if (statusText) statusText.textContent = 'Push notifications disabled.';
   showToast('🔕 Push notifications disabled');
+  // Force button to ENABLE state with correct onclick
+  if (btn) {
+    btn.textContent = 'ENABLE';
+    btn.onclick = requestPushPermission;
+    btn.style.background = 'rgba(0,229,160,0.15)';
+    btn.style.borderColor = 'rgba(0,229,160,0.4)';
+    btn.style.color = 'var(--wind-green)';
+    btn.disabled = false;
+  }
+  // Also clear from per-user localStorage key if signed in
+  if (wcUser) {
+    try {
+      const key = 'wc_profile_' + wcUser.uid;
+      const p = JSON.parse(_store.get(key) || '{}');
+      p.pushEnabled = false; p.fcmToken = null;
+      _store.set(key, JSON.stringify(p));
+    } catch(e) {}
+  }
 }
 
 // Update push button state on settings open
@@ -5931,6 +5949,18 @@ window.saveProfile = function() {
 // Register sync functions
 window._syncSessionsFromFirestore = _syncSessionsFromFirestore;
 window._syncProfileToFirestore = _syncProfileToFirestore;
+
+// Safe push toggle — reads button state not profile (avoids stale state)
+window._togglePush = function() {
+  const btn = document.getElementById('pushEnableBtn');
+  if (!btn) return;
+  const isEnabled = btn.textContent.trim().startsWith('✓') || btn.textContent.trim() === '✓ ENABLED';
+  if (isEnabled) {
+    disablePush();
+  } else {
+    requestPushPermission();
+  }
+};
 </script>
 </body>
 </html>
