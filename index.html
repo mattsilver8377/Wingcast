@@ -4371,10 +4371,11 @@ async function subscribePush() {
     const token = await _fbMessaging.getToken(tokenOptions);
     if (!token) throw new Error('No token returned');
 
-    // Save token to profile locally
+    // Save token to profile locally — save to BOTH keys so it persists after login
     profile.fcmToken = token;
     profile.pushEnabled = true;
     _store.set('wc_profile', JSON.stringify(profile));
+    if (wcUser) _store.set('wc_profile_' + wcUser.uid, JSON.stringify(profile));
     console.log('[WingCast] FCM token:', token);
 
     // Save token + alert prefs to Firestore so Cloud Function can use them
@@ -4502,13 +4503,21 @@ function updatePushBtn() {
     btn.disabled = true;
     return;
   }
-  if (Notification.permission === 'granted' && profile.pushEnabled) {
+  // Re-read pushEnabled from correct localStorage key in case profile was reloaded
+  if (wcUser) {
+    try {
+      const saved = JSON.parse(_store.get('wc_profile_' + wcUser.uid) || '{}');
+      if (saved.pushEnabled !== undefined) profile.pushEnabled = saved.pushEnabled;
+      if (saved.fcmToken !== undefined) profile.fcmToken = saved.fcmToken;
+    } catch(e) {}
+  }
+  const isEnabled = Notification.permission === 'granted' && profile.pushEnabled && profile.fcmToken;
+  if (isEnabled) {
     btn.textContent = '✓ ENABLED';
     btn.style.background = 'rgba(0,229,160,0.25)';
     btn.style.borderColor = 'rgba(0,229,160,0.4)';
     btn.style.color = 'var(--wind-green)';
     btn.disabled = false;
-    btn.onclick = disablePush;
     if (statusText) statusText.textContent = '✓ Push notifications active — tap to disable.';
   } else if (Notification.permission === 'denied') {
     btn.textContent = 'BLOCKED';
@@ -4520,7 +4529,6 @@ function updatePushBtn() {
     btn.style.borderColor = 'rgba(0,229,160,0.4)';
     btn.style.color = 'var(--wind-green)';
     btn.disabled = false;
-    btn.onclick = requestPushPermission;
     if (statusText) statusText.textContent = 'Get notified when wind hits your target — even when the app is closed.';
   }
 }
