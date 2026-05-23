@@ -1165,14 +1165,23 @@
         <div id="spotBrowserList" style="display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto;"></div>
       </div>
     </div>
-    <!-- Quiver -->
+    <!-- Wings -->
     <div class="profile-section">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-        <div class="profile-section-title" style="margin:0;">MY QUIVER</div>
+        <div class="profile-section-title" style="margin:0;">MY WINGS</div>
         <button onclick="openAddWing()" class="profile-add-btn" style="color:var(--wind-green);border-color:rgba(0,229,160,0.25);background:rgba(0,229,160,0.08);">+ ADD WING</button>
       </div>
       <div id="quiverList" style="display:flex;flex-direction:column;gap:8px;"></div>
       <div style="margin-top:10px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);">Wing recommendations update automatically in the forecast.</div>
+    </div>
+    <!-- Foils -->
+    <div class="profile-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div class="profile-section-title" style="margin:0;">MY FOILS</div>
+        <button onclick="openAddFoil()" class="profile-add-btn" style="color:#c084fc;border-color:rgba(192,132,252,0.25);background:rgba(192,132,252,0.08);">+ ADD FOIL</button>
+      </div>
+      <div id="foilList" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div style="margin-top:10px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text-muted);">Log your foil setup for session notes.</div>
     </div>
     <!-- Boards -->
     <div class="profile-section">
@@ -1351,6 +1360,7 @@
       <label class="profile-label">CONDITION REPORTS</label>
       <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
         <div onclick="toggleAnonymous()" id="anonToggle" style="width:44px;height:24px;border-radius:12px;background:rgba(255,59,92,0.15);border:1px solid rgba(255,59,92,0.3);cursor:pointer;position:relative;transition:all 0.2s;">
+      <div><label class="profile-label">FOIL USED</label><select id="sFoil" class="profile-select"></select></div>
           <div id="anonToggleThumb" style="width:18px;height:18px;border-radius:50%;background:var(--sky);position:absolute;top:2px;left:4px;transition:left 0.2s;"></div>
         </div>
         <span id="anonToggleLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-dim);">POST ANONYMOUSLY — off (name shown)</span>
@@ -1463,6 +1473,24 @@
       <div><label class="profile-label">BOARD NAME</label><input id="newBoardName" type="text" placeholder="e.g. Cabrinha XPS 135" class="profile-input"></div>
       <div><label class="profile-label">VOLUME (LITRES) — optional</label><input id="newBoardVolume" type="number" placeholder="e.g. 135" class="profile-input"></div>
       <button onclick="saveNewBoard()" style="padding:12px;background:rgba(91,196,245,0.15);border:1px solid rgba(91,196,245,0.4);border-radius:10px;color:var(--sky);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;">ADD BOARD</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ====== ADD FOIL MODAL ====== -->
+<div id="addFoilModal" style="display:none;position:fixed;inset:0;background:rgba(4,13,26,0.94);z-index:1000;padding:20px;">
+  <div style="max-width:380px;margin:40px auto 0;background:var(--ocean-mid);border:1px solid var(--glass-border);border-radius:16px;padding:22px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#c084fc;letter-spacing:3px;">ADD FOIL</div>
+      <button onclick="closeModal('addFoilModal')" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;">&#10005;</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div><label class="profile-label">BRAND / NAME</label><input id="newFoilName" type="text" placeholder="e.g. Slingshot Hoverglide" class="profile-input"></div>
+      <div><label class="profile-label">FRONT WING SIZE (CM&#178;) &#8212; optional</label><input id="newFoilSize" type="number" placeholder="e.g. 1700" class="profile-input"></div>
+      <div><label class="profile-label">MAST LENGTH (CM) &#8212; optional</label><input id="newFoilMast" type="number" placeholder="e.g. 75" class="profile-input"></div>
+      <div><label class="profile-label">NOTES &#8212; optional</label><input id="newFoilNotes" type="text" placeholder="e.g. low wind setup" class="profile-input"></div>
+      <button onclick="saveNewFoil()" style="padding:12px;background:rgba(192,132,252,0.15);border:1px solid rgba(192,132,252,0.4);border-radius:10px;color:#c084fc;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;">ADD FOIL</button>
     </div>
   </div>
 </div>
@@ -2782,7 +2810,7 @@ function renderForecastTable() {
     const arrowColor = windColor(h.wind);
     const dirArrow = `<svg width="20" height="20" viewBox="0 0 24 24" style="transform:rotate(${dirDeg}deg);display:inline-block;"><path d="M12 2 L16 10 L12 8 L8 10 Z" fill="${arrowColor}"/><line x1="12" y1="8" x2="12" y2="20" stroke="${arrowColor}" stroke-width="2" stroke-linecap="round"/></svg>`;
     const dt = getDirType(h.dir, currentLocation);
-    const dirLabel = dt === 'offshore' ? `<div style="font-family:'Barlow Condensed';font-size:9px;color:var(--wind-red);letter-spacing:1px;">⚠OFF</div>` : dt === 'onshore' ? `<div style="font-family:'Barlow Condensed';font-size:9px;color:var(--wind-yellow);letter-spacing:1px;">ON</div>` : `<div style="font-family:'Barlow Condensed';font-size:9px;color:var(--wind-green);letter-spacing:1px;">✓X</div>`;
+    const dirLabel = dt === 'offshore' ? '<div style="font-family:Barlow Condensed;font-size:9px;color:var(--wind-red);letter-spacing:1px;">&#9888;OFF</div>' : dt === 'onshore' ? '<div style="font-family:Barlow Condensed;font-size:9px;color:var(--wind-yellow);letter-spacing:1px;">ON</div>' : '<div style="font-family:Barlow Condensed;font-size:9px;color:var(--wind-green);letter-spacing:1px;">&#10003;X</div>';
     const swellCol = h.swell > 2.0 ? '#ff3b5c' : h.swell > 1.5 ? '#ff8c42' : h.swell > 0.8 ? '#f7c948' : 'var(--sky)';
     const periodCol = h.wavePeriod >= 12 ? '#00e5a0' : h.wavePeriod >= 9 ? '#f7c948' : 'var(--text-dim)';
     const cloudCol = h.cloud > 80 ? 'var(--text-dim)' : h.cloud > 50 ? '#7ab3d4' : '#f7c948';
@@ -2803,7 +2831,7 @@ function renderForecastTable() {
       condition: `<td><span class="condition-pill ${cond.pill}" style="font-size:10px;padding:3px 7px;"><span class="pill-dot"></span>${cond.label}</span></td>`,
       wind:      `<td style="color:${windCol};font-family:'Bebas Neue',sans-serif;font-size:20px;text-align:center;">${cvtWind(h.wind)}</td>`,
       gusts:     `<td style="color:var(--text-dim);font-family:'Bebas Neue',sans-serif;font-size:18px;text-align:center;">${cvtWind(h.gust)}</td>`,
-      wing:      `<td style="text-align:center;">${wing ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;color:${wing.color};">${wing.size}</span>` : '<span style="color:var(--text-muted);font-size:11px;">—</span>'}</td>`,
+       wing:      `<td style="text-align:center;">${wing ? '<span style="font-family:Barlow Condensed,sans-serif;font-size:12px;font-weight:700;color:' + wing.color + ';">' + wing.size + '</span>' : '<span style="color:var(--text-muted);font-size:11px;">&#8212;</span>'}</td>`,
       dir:       `<td style="text-align:center;">${dirArrow}${dirLabel}</td>`,
       weather:   `<td style="text-align:center;font-size:18px;">${WEATHER_ICONS[h.weather] || '⛅'}</td>`,
       temp:      `<td style="color:${tempCol};font-family:'Bebas Neue',sans-serif;font-size:18px;text-align:center;">${h.temp}°</td>`,
@@ -3563,6 +3591,7 @@ function renderLocationList() {
   const el=document.getElementById('locationList'); if(!el) return;
   const locs=getAllLocations();
   if(!Object.keys(locs).length) {
+if (!profile.foils)    profile.foils    = [];
     el.innerHTML='<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:13px;color:var(--text-muted);text-align:center;padding:14px;">No locations added yet.<br>Tap + ADD LOCATION to get started.</div>';
     return;
   }
@@ -4119,6 +4148,63 @@ function addBoard() { openAddBoard(); } // alias
 
 function deleteBoard(idx) { profile.boards.splice(idx,1); _store.set('wc_profile', JSON.stringify(profile)); renderBoardList(); }
 
+// ---- FOILS ----
+function openAddFoil() {
+  var m = document.getElementById('addFoilModal');
+  if (!m) return;
+  m.style.display = 'block';
+  ['newFoilName','newFoilSize','newFoilMast','newFoilNotes'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
+}
+
+function saveNewFoil() {
+  var nameEl = document.getElementById('newFoilName');
+  var name = nameEl ? nameEl.value.trim() : '';
+  if (!name) { alert('Please enter a foil name or brand'); return; }
+  var sizeEl  = document.getElementById('newFoilSize');
+  var mastEl  = document.getElementById('newFoilMast');
+  var notesEl = document.getElementById('newFoilNotes');
+  var size  = sizeEl  && sizeEl.value  ? parseInt(sizeEl.value)  : null;
+  var mast  = mastEl  && mastEl.value  ? parseInt(mastEl.value)  : null;
+  var notes = notesEl && notesEl.value ? notesEl.value.trim() : null;
+  if (!profile.foils) profile.foils = [];
+  profile.foils.push({ name: name, size: size, mast: mast, notes: notes });
+  _store.set('wc_profile', JSON.stringify(profile));
+  closeModal('addFoilModal');
+  renderFoilList();
+}
+
+function deleteFoil(idx) {
+  if (!profile.foils) return;
+  profile.foils.splice(idx, 1);
+  _store.set('wc_profile', JSON.stringify(profile));
+  renderFoilList();
+}
+
+function renderFoilList() {
+  var el = document.getElementById('foilList');
+  if (!el) return;
+  var foils = profile.foils || [];
+  if (!foils.length) {
+    el.innerHTML = '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:13px;color:var(--text-muted);text-align:center;padding:14px;">No foils added yet</div>';
+    return;
+  }
+  var rows = foils.map(function(f, i) {
+    var details = [f.size ? f.size + 'cm²' : null, f.mast ? f.mast + 'cm mast' : null, f.notes || null].filter(Boolean).join(' · ');
+    return '<div class="quiver-item">' +
+      '<div style="font-size:17px;min-width:30px;">&#127940;</div>' +
+      '<div style="flex:1;">' +
+        '<div class="quiver-name">' + f.name + '</div>' +
+        (details ? '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:10px;color:var(--text-muted);">' + details + '</div>' : '') +
+      '</div>' +
+      '<button class="quiver-del" onclick="deleteFoil(' + i + ')">&#10005;</button>' +
+    '</div>';
+  });
+  el.innerHTML = rows.join('');
+}
+
+
 // ---- WETSUITS MODAL ----
 // O'Neill thickness guide (minTemp = min water temp in °C)
 const WETSUIT_TEMPS = {
@@ -4371,6 +4457,7 @@ function openLogSession() {
   }
   document.getElementById('sWing').innerHTML='<option value="">— select wing —</option>'+(profile.quiver||[]).sort((a,b)=>b.size-a.size).map(w=>'<option value="'+w.size+'">'+w.name+'</option>').join('');
   document.getElementById('sBoard').innerHTML='<option value="">— select board —</option>'+(profile.boards||[]).map(b=>'<option value="'+b.name+'">'+b.name+'</option>').join('');
+  var _fSel=document.getElementById('sFoil'); if(_fSel) _fSel.innerHTML='<option value="">— select foil —</option>'+(profile.foils||[]).map(function(f){return '<option value="'+f.name+'">'+f.name+'</option>';}).join('');
   const wt=( LOCATIONS[currentLocation] || BUILTIN_SPOTS[currentLocation] )?.waterTemp||12;
   const wm=profile.wetsuits?.length?[...(profile.wetsuits||[])].sort((a,b)=>b.minTemp-a.minTemp).find(w=>wt>=w.minTemp):null;
   document.getElementById('sWetsuit').innerHTML='<option value="">— select wetsuit —</option>'+(profile.wetsuits||[]).map(w=>'<option value="'+w.thickness+'"'+(wm&&wm.thickness===w.thickness?' selected':'')+'>'+w.name+' ('+w.thickness+')</option>').join('')+'<option value="boardshorts">Boardshorts / None</option>';
@@ -4388,7 +4475,7 @@ function saveSession() {
   const hrs=parseInt(document.getElementById('sDurHrs').value)||0; const mins=parseInt(document.getElementById('sDurMins').value)||0;
   getSessions(); const sessions=getSessions();
   sessions.unshift({id:Date.now(),date,location:loc,start:document.getElementById('sStart').value,duration:+(hrs+mins/60).toFixed(2),
-    wing:document.getElementById('sWing').value,board:document.getElementById('sBoard').value,wetsuit:document.getElementById('sWetsuit').value,
+    wing:document.getElementById('sWing').value,board:document.getElementById('sBoard').value,foil:(document.getElementById('sFoil')||{value:''}).value||'',wetsuit:document.getElementById('sWetsuit').value,
     wind:parseFloat(document.getElementById('sWind').value)||0,
     windDir:document.getElementById('sWindDir')?.value||'',
     swell:parseFloat(document.getElementById('sSwell').value)||0,
@@ -4471,7 +4558,7 @@ function renderSessions() {
     (s.wind?'<div class="session-stat"><div class="session-stat-val" style="color:'+windColor(s.wind)+';">'+s.wind+'kts'+(s.windDir?' '+s.windDir:'')+'</div><div class="session-stat-lbl">WIND</div></div>':'')+
     (s.swell?'<div class="session-stat"><div class="session-stat-val" style="color:var(--sky);">'+s.swell+'m</div><div class="session-stat-lbl">SWELL</div></div>':'')+
     (s.wing?'<div class="session-stat"><div class="session-stat-val" style="color:var(--wind-green);">'+s.wing+'m</div><div class="session-stat-lbl">WING</div></div>':'')+
-    (s.wetsuit?'<div class="session-stat"><div class="session-stat-val" style="color:#7ab3d4;font-size:13px;">'+s.wetsuit+'</div><div class="session-stat-lbl">WETSUIT</div></div>':'')+
+    (s.foil?'<div class="session-stat"><div class="session-stat-val" style="color:#c084fc;font-size:13px;">'+s.foil+'</div><div class="session-stat-lbl">FOIL</div></div>':'')+    (s.wetsuit?'<div class="session-stat"><div class="session-stat-val" style="color:#7ab3d4;font-size:13px;">'+s.wetsuit+'</div><div class="session-stat-lbl">WETSUIT</div></div>':'')+
     (s.gpx?'<div class="session-stat"><div class="session-stat-val" style="color:var(--wind-green);font-size:13px;">'+s.gpx.distKm.toFixed(1)+'km</div><div class="session-stat-lbl">DISTANCE</div></div>':'')+
     (s.gpx?'<div class="session-stat"><div class="session-stat-val" style="color:var(--wind-yellow);font-size:13px;">'+s.gpx.maxSpeedKts+'kts</div><div class="session-stat-lbl">MAX SPD</div></div>':'')+
     '</div>'+
