@@ -3555,7 +3555,7 @@ function renderProfile() {
   const pn=document.getElementById('pName'); if(pn&&profile.name) pn.value=profile.name;
   const pw=document.getElementById('pWeight'); if(pw&&profile.weight) pw.value=profile.weight;
   const pl=document.getElementById('pLevel'); if(pl&&profile.level) pl.value=profile.level;
-  renderHomeSpotSelect(); renderLocationList(); renderQuiverList(); renderBoardList(); renderWetsuitList();
+  renderHomeSpotSelect(); renderLocationList(); renderQuiverList(); renderBoardList(); renderFoilList(); renderWetsuitList();
   updateProfileHeader(); initWarningToggle();
   // Avatar
   const av=document.getElementById('profileAvatarDisplay'); if(av) av.textContent=profile.avatar||'🤙';
@@ -4127,8 +4127,7 @@ function deleteWing(idx) {
   const sorted=[...(profile.quiver||[])].sort((a,b)=>b.size-a.size); const rm=sorted[idx];
   profile.quiver=profile.quiver.filter(w=>!(w.size===rm.size&&w.name===rm.name));
   _store.set('wc_profile', JSON.stringify(profile));
-  if(wcUser) _store.set('wc_profile_'+wcUser.uid, JSON.stringify(profile));
-  renderQuiverList();
+  if(wcUser) _store.set('wc_profile_'+wcUser.uid, JSON.stringify(profile)); renderQuiverList();
 }
 
 // ---- BOARDS MODAL ----
@@ -4151,7 +4150,8 @@ function saveNewBoard() {
 
 function addBoard() { openAddBoard(); } // alias
 
-function deleteBoard(idx) { profile.boards.splice(idx,1); _store.set('wc_profile', JSON.stringify(profile)); if(wcUser) _store.set('wc_profile_'+wcUser.uid, JSON.stringify(profile)); renderBoardList(); }
+function deleteBoard(idx) { profile.boards.splice(idx,1); _store.set('wc_profile', JSON.stringify(profile));
+  if(wcUser) _store.set('wc_profile_'+wcUser.uid, JSON.stringify(profile)); renderBoardList(); }
 
 // ---- FOILS ----
 function openAddFoil() {
@@ -4250,7 +4250,8 @@ function saveNewWetsuit() {
 
 function addWetsuit() { openAddWetsuit(); } // alias
 
-function deleteWetsuit(idx) { profile.wetsuits.splice(idx,1); _store.set('wc_profile', JSON.stringify(profile)); if(wcUser) _store.set('wc_profile_'+wcUser.uid, JSON.stringify(profile)); renderWetsuitList(); }
+function deleteWetsuit(idx) { profile.wetsuits.splice(idx,1); _store.set('wc_profile', JSON.stringify(profile));
+  if(wcUser) _store.set('wc_profile_'+wcUser.uid, JSON.stringify(profile)); renderWetsuitList(); }
 
 // ---- MODAL HELPERS ----
 function closeModal(id) {
